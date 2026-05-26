@@ -19,6 +19,7 @@ type TileState = {
   identity: string;
   name: string;
   videoEl?: HTMLVideoElement;
+  audioEl?: HTMLAudioElement;
   cameraOn: boolean;
   micOn: boolean;
   isLocal: boolean;
@@ -70,18 +71,34 @@ export function VideoChatStrip({ roomId }: { roomId: Id<"rooms"> }) {
   function snapshotParticipant(p: Participant, isLocal: boolean): TileState {
     const camPub = p.getTrackPublication(Track.Source.Camera);
     const micPub = p.getTrackPublication(Track.Source.Microphone);
+
     let videoEl: HTMLVideoElement | undefined;
     if (camPub?.track && !camPub.isMuted) {
       videoEl = document.createElement("video");
       videoEl.autoplay = true;
       videoEl.playsInline = true;
-      videoEl.muted = isLocal; // never echo local audio
+      videoEl.muted = true; // video element never carries audio — see audioEl
       camPub.track.attach(videoEl);
     }
+
+    // Audio is a separate track. Only attach for REMOTE participants —
+    // attaching the local mic would create an echo loop.
+    let audioEl: HTMLAudioElement | undefined;
+    if (!isLocal && micPub?.track && !micPub.isMuted) {
+      audioEl = document.createElement("audio");
+      audioEl.autoplay = true;
+      micPub.track.attach(audioEl);
+      // Browsers block autoplay-with-sound until user gesture; append to DOM
+      // so the existing user gesture (clicking "join") counts.
+      audioEl.style.display = "none";
+      document.body.appendChild(audioEl);
+    }
+
     return {
       identity: p.identity,
       name: p.name || p.identity,
       videoEl,
+      audioEl,
       cameraOn: !!camPub && !camPub.isMuted,
       micOn: !!micPub && !micPub.isMuted,
       isLocal,
@@ -91,10 +108,21 @@ export function VideoChatStrip({ roomId }: { roomId: Id<"rooms"> }) {
   function rebuildTiles() {
     const room = roomRef.current;
     if (!room) return;
-    const next: TileState[] = [];
-    next.push(snapshotParticipant(room.localParticipant, true));
-    room.remoteParticipants.forEach((p) => next.push(snapshotParticipant(p, false)));
-    setTiles(next);
+    // Detach the previous snapshot's hidden audio elements so we don't
+    // stack one per rebuild.
+    setTiles((prev) => {
+      for (const t of prev) {
+        if (t.audioEl) {
+          try { t.audioEl.pause(); } catch {}
+          t.audioEl.srcObject = null;
+          t.audioEl.remove();
+        }
+      }
+      const next: TileState[] = [];
+      next.push(snapshotParticipant(room.localParticipant, true));
+      room.remoteParticipants.forEach((p) => next.push(snapshotParticipant(p, false)));
+      return next;
+    });
   }
 
   function attachRemoteTrack(_track: RemoteTrack, _pub: RemoteTrackPublication, _p: RemoteParticipant) {
