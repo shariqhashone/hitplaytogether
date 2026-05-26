@@ -26,6 +26,7 @@ type TileState = {
   micOn: boolean;
   isLocal: boolean;
   isSpeaking: boolean;
+  avatarUrl?: string;
 };
 
 export function VideoChatStrip({
@@ -35,6 +36,7 @@ export function VideoChatStrip({
   screenShareRequested = false,
   pinnedKey = null,
   onPin,
+  avatarByIdentity = {},
 }: {
   roomId: Id<"rooms">;
   forceMicOff?: boolean;
@@ -42,6 +44,7 @@ export function VideoChatStrip({
   screenShareRequested?: boolean;
   pinnedKey?: string | null;
   onPin?: (key: string) => void;
+  avatarByIdentity?: Record<string, string | null>;
 }) {
   const getToken = useAction(api.video.getToken);
   const requestScreenShare = useMutation(api.rooms.requestScreenShare);
@@ -291,7 +294,11 @@ export function VideoChatStrip({
               big
               t={(() => {
                 const t = tiles.find((x) => x.key === pinnedKey)!;
-                return { ...t, isSpeaking: t.kind === "camera" && speakers.has(t.identity) };
+                return {
+                  ...t,
+                  isSpeaking: t.kind === "camera" && speakers.has(t.identity),
+                  avatarUrl: avatarByIdentity[t.identity] ?? undefined,
+                };
               })()}
               onClick={() => onPin?.(pinnedKey)}
             />
@@ -306,7 +313,11 @@ export function VideoChatStrip({
           {tiles.map((t) => (
             <Tile
               key={t.key}
-              t={{ ...t, isSpeaking: t.kind === "camera" && speakers.has(t.identity) }}
+              t={{
+                ...t,
+                isSpeaking: t.kind === "camera" && speakers.has(t.identity),
+                avatarUrl: avatarByIdentity[t.identity] ?? undefined,
+              }}
               onClick={() => onPin?.(t.key)}
               pinned={pinnedKey === t.key}
             />
@@ -392,7 +403,21 @@ function Tile({
         onClick={onClick}
         title={onClick ? (big ? "Click to unpin" : "Click to pin/expand") : undefined}
       >
-        <div className="ph" />
+        {t.avatarUrl ? (
+          <img
+            src={t.avatarUrl}
+            alt=""
+            style={{
+              width: big ? 120 : 50,
+              height: big ? 120 : 50,
+              borderRadius: "50%",
+              objectFit: "cover",
+              border: "2px solid var(--line)",
+            }}
+          />
+        ) : (
+          <div className="ph" />
+        )}
         <span className="nm">{t.isLocal ? "You · camera off" : `${t.name} · camera off`}</span>
         {!t.micOn && <span className="mic-off">✕</span>}
       </div>

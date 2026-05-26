@@ -30,6 +30,7 @@ export default function WatchRoomPage() {
   const setParticipantMute = useMutation(api.rooms.setParticipantMute);
   const kickParticipant = useMutation(api.rooms.kickParticipant);
   const setScreenSharePermission = useMutation(api.rooms.setScreenSharePermission);
+  const joinByLink = useMutation(api.rooms.joinByLink);
 
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
@@ -110,8 +111,30 @@ export default function WatchRoomPage() {
     data,
   ]);
 
+  // Access denied for private rooms: auto-redirect to /join-room.
+  // For invite-link rooms, auto-join.
+  useEffect(() => {
+    if (!data) return;
+    if ("accessDenied" in data && data.accessDenied) {
+      if (data.privacy === "link") {
+        joinByLink({ roomId }).catch(() => router.push("/dashboard"));
+      } else {
+        // Private — visitor needs the code
+        const url = encodeURIComponent(`/room/${roomId}`);
+        router.push(`/join-room?next=${url}`);
+      }
+    }
+  }, [data, joinByLink, roomId, router]);
+
   if (data === undefined) return <div className="loader">Loading room…</div>;
   if (data === null) return <div className="loader">Room not found.</div>;
+  if ("accessDenied" in data && data.accessDenied) {
+    return (
+      <div className="loader">
+        {data.privacy === "link" ? "Joining room…" : "This room is private — redirecting…"}
+      </div>
+    );
+  }
 
   const room = data.room;
 
@@ -125,7 +148,11 @@ export default function WatchRoomPage() {
 
   async function copyCode() {
     try {
-      await navigator.clipboard.writeText(room.code);
+      const value =
+        room.privacy === "link"
+          ? `${window.location.origin}/room/${room._id}`
+          : room.code;
+      await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {}
@@ -177,7 +204,8 @@ export default function WatchRoomPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span className="code" onClick={copyCode}>
-            CODE {room.code} · {copied ? "Copied!" : "Copy"}
+            {room.privacy === "link" ? "🔗 Invite link" : `CODE ${room.code}`} ·{" "}
+            {copied ? "Copied!" : "Copy"}
           </span>
           {data.meIsHost && (
             <button className="btn btn-ghost btn-sm" onClick={endRoom}>
@@ -250,6 +278,9 @@ export default function WatchRoomPage() {
             screenShareRequested={!!data.myScreenShareRequestedAt}
             pinnedKey={pinnedKey}
             onPin={(k) => setPinnedKey((cur) => (cur === k ? null : k))}
+            avatarByIdentity={Object.fromEntries(
+              data.participants.map((p) => [String(p.userId), p.avatarUrl ?? null]),
+            )}
           />
 
           <div className="now-playing">

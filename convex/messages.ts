@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireUser } from "./lib/auth";
+import { resolveAvatar } from "./lib/avatar";
 
 const MAX_LEN = 1000;
 
@@ -40,7 +41,7 @@ export const list = query({
             body: m.body,
             createdAt: m._creationTime,
             authorName: u?.displayName ?? "Unknown",
-            authorAvatar: u?.avatarUrl,
+            authorAvatar: await resolveAvatar(ctx, u ?? null),
             isMe: m.userId === me._id,
           };
         }),

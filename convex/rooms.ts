@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { requireUser } from "./lib/auth";
 import { extractYouTubeId } from "./lib/youtube";
 import { generateRoomCode } from "./lib/code";
+import { resolveAvatar } from "./lib/avatar";
 import { Doc, Id } from "./_generated/dataModel";
 
 async function uniqueCode(ctx: any): Promise<string> {
@@ -120,8 +121,14 @@ export const get = query({
       .collect();
 
     const isMember = participants.some((p) => p.userId === me._id);
+    // For private rooms, non-members get a clear flag rather than a thrown
+    // error — the watch-room page uses it to redirect to /join-room.
     if (!isMember && room.privacy === "private") {
-      throw new Error("Not a participant of this room");
+      return {
+        accessDenied: true as const,
+        roomName: room.name,
+        privacy: room.privacy,
+      };
     }
 
     const withUsers = await Promise.all(
@@ -134,7 +141,7 @@ export const get = query({
             userId: p.userId,
             role: p.role,
             displayName: u?.displayName ?? "Unknown",
-            avatarUrl: u?.avatarUrl,
+            avatarUrl: await resolveAvatar(ctx, u ?? null),
             mutedByHost: !!p.mutedByHost,
             kickedAt: p.kickedAt,
             canShareScreen: !!p.canShareScreen,
@@ -242,6 +249,43 @@ export const kickParticipant = mutation({
       .first();
     if (!p) throw new Error("Participant not found");
     await ctx.db.patch(p._id, { kickedAt: Date.now(), leftAt: Date.now() });
+  },
+});
+
+/**
+ * Auto-join via shareable link. Only works for rooms whose privacy is
+ * "link" — private rooms still require the 6-char code via `join`.
+ */
+export const joinByLink = mutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, { roomId }) => {
+    const me = await requireUser(ctx);
+    const room = await ctx.db.get(roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.status !== "active") throw new Error("This room has ended");
+    if (room.privacy !== "link") {
+      throw new Error("This room is private — use the access code to join.");
+    }
+
+    const existing = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room_user", (q) => q.eq("roomId", room._id).eq("userId", me._id))
+      .first();
+
+    if (existing) {
+      if (existing.leftAt) {
+        await ctx.db.patch(existing._id, { leftAt: undefined, joinedAt: Date.now() });
+      }
+      return { roomId: room._id };
+    }
+
+    await ctx.db.insert("roomParticipants", {
+      roomId: room._id,
+      userId: me._id,
+      role: "participant",
+      joinedAt: Date.now(),
+    });
+    return { roomId: room._id };
   },
 });
 

@@ -12,6 +12,8 @@ export default function ProfilePage() {
   const { isAuthenticated } = useConvexAuth();
   const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
   const update = useMutation(api.users.updateProfile);
+  const generateUploadUrl = useMutation(api.users.generateAvatarUploadUrl);
+  const setAvatarMutation = useMutation(api.users.setAvatar);
   const { signOut } = useAuthActions();
   const router = useRouter();
   const [displayName, setName] = useState("");
@@ -19,6 +21,7 @@ export default function ProfilePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (me) {
@@ -26,6 +29,35 @@ export default function ProfilePage() {
       setAvatar(me.avatarUrl ?? "");
     }
   }, [me]);
+
+  async function onAvatarFile(file: File) {
+    setErr(null); setMsg(null);
+    if (!file.type.startsWith("image/")) {
+      setErr("Please choose an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErr("Image too large — keep it under 5 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await generateUploadUrl({});
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const { storageId } = await res.json();
+      await setAvatarMutation({ storageId });
+      setMsg("Avatar updated.");
+    } catch (e: any) {
+      setErr(e?.message ?? "Could not upload avatar");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function save() {
     setMsg(null); setErr(null); setBusy(true);
@@ -79,13 +111,46 @@ export default function ProfilePage() {
                   <input className="field" value={me?.email ?? ""} disabled style={{ color: "var(--txt-3)" }} />
                 </div>
                 <div className="full">
-                  <label className="lbl">Avatar URL</label>
-                  <input
-                    className="field"
-                    placeholder="https://…"
-                    value={avatarUrl}
-                    onChange={(e) => setAvatar(e.target.value)}
-                  />
+                  <label className="lbl">Profile photo</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    {me?.avatarUrl ? (
+                      <img
+                        src={me.avatarUrl}
+                        alt=""
+                        style={{
+                          width: 64, height: 64, borderRadius: 16,
+                          objectFit: "cover", border: "1px solid var(--line)",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 64, height: 64, borderRadius: 16,
+                          background: "linear-gradient(135deg,var(--violet),var(--cyan))",
+                        }}
+                      />
+                    )}
+                    <label
+                      className="btn btn-ghost btn-sm"
+                      style={{ cursor: uploading ? "wait" : "pointer" }}
+                    >
+                      {uploading ? "Uploading…" : "Upload new photo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        disabled={uploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) onAvatarFile(f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <span style={{ fontSize: 11, color: "var(--txt-3)" }}>
+                      JPG/PNG/WebP · max 5 MB
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="divider" />

@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { getCurrentAppUser, requireUser } from "./lib/auth";
+import { resolveAvatar } from "./lib/avatar";
 import { Id } from "./_generated/dataModel";
 
 /**
@@ -72,7 +73,8 @@ export const me = query({
     const user = await getCurrentAppUser(ctx);
     if (!user) return null;
     const plan = await ctx.db.get(user.planId);
-    return { ...user, plan };
+    const avatarUrl = await resolveAvatar(ctx, user);
+    return { ...user, avatarUrl, plan };
   },
 });
 
@@ -92,6 +94,35 @@ export const updateProfile = mutation({
     if (args.avatarUrl !== undefined) patch.avatarUrl = args.avatarUrl || undefined;
     await ctx.db.patch(me._id, patch);
     return await ctx.db.get(me._id);
+  },
+});
+
+/** Step 1 of avatar upload: client asks for a short-lived signed URL. */
+export const generateAvatarUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireUser(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * Step 2 of avatar upload: client POSTed to the signed URL, got back a
+ * storageId, and now saves it on their profile. Also clears any legacy
+ * external URL so the uploaded one is the source of truth.
+ */
+export const setAvatar = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    const me = await requireUser(ctx);
+    // delete any previous uploaded avatar to avoid orphan files
+    if (me.avatarStorageId && me.avatarStorageId !== storageId) {
+      try { await ctx.storage.delete(me.avatarStorageId); } catch {}
+    }
+    await ctx.db.patch(me._id, {
+      avatarStorageId: storageId,
+      avatarUrl: undefined,
+    });
   },
 });
 

@@ -13,6 +13,7 @@ import type * as auth from "../auth.js";
 import type * as content from "../content.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_avatar from "../lib/avatar.js";
 import type * as lib_code from "../lib/code.js";
 import type * as lib_entitlements from "../lib/entitlements.js";
 import type * as lib_youtube from "../lib/youtube.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   content: typeof content;
   http: typeof http;
   "lib/auth": typeof lib_auth;
+  "lib/avatar": typeof lib_avatar;
   "lib/code": typeof lib_code;
   "lib/entitlements": typeof lib_entitlements;
   "lib/youtube": typeof lib_youtube;

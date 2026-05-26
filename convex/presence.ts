@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireUser } from "./lib/auth";
+import { resolveAvatar } from "./lib/avatar";
 
 const STALE_MS = 30_000; // anyone who hasn't heartbeat in 30s is "offline"
 
@@ -39,7 +40,7 @@ export const forRoom = query({
         return {
           userId: p.userId,
           displayName: u?.displayName ?? "Unknown",
-          avatarUrl: u?.avatarUrl,
+          avatarUrl: await resolveAvatar(ctx, u ?? null),
           state: stale ? ("offline" as const) : p.state,
           heartbeatAt: p.heartbeatAt,
         };

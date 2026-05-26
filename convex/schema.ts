@@ -20,7 +20,8 @@ export default defineSchema({
   appUsers: defineTable({
     displayName: v.string(),
     email: v.string(),
-    avatarUrl: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),           // legacy / external URL
+    avatarStorageId: v.optional(v.id("_storage")), // uploaded via Convex storage
     status: v.union(
       v.literal("active"),
       v.literal("banned"),
