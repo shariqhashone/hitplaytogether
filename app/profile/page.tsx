@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
@@ -9,7 +9,8 @@ import { AuthBootstrap } from "@/components/AuthBootstrap";
 import { Footer } from "@/components/Footer";
 
 export default function ProfilePage() {
-  const me = useQuery(api.users.me);
+  const { isAuthenticated } = useConvexAuth();
+  const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
   const update = useMutation(api.users.updateProfile);
   const { signOut } = useAuthActions();
   const router = useRouter();

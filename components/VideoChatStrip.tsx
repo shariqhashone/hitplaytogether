@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -31,15 +31,21 @@ type TileState = {
 export function VideoChatStrip({
   roomId,
   forceMicOff = false,
+  canShareScreen = true,
+  screenShareRequested = false,
   pinnedKey = null,
   onPin,
 }: {
   roomId: Id<"rooms">;
   forceMicOff?: boolean;
+  canShareScreen?: boolean;
+  screenShareRequested?: boolean;
   pinnedKey?: string | null;
   onPin?: (key: string) => void;
 }) {
   const getToken = useAction(api.video.getToken);
+  const requestScreenShare = useMutation(api.rooms.requestScreenShare);
+  const cancelScreenShareRequest = useMutation(api.rooms.cancelScreenShareRequest);
   const [tiles, setTiles] = useState<TileState[]>([]);
   const [connected, setConnected] = useState(false);
   const [camOn, setCamOn] = useState(true);
@@ -239,9 +245,27 @@ export function VideoChatStrip({
   async function toggleShare() {
     const lp = roomRef.current?.localParticipant as LocalParticipant | undefined;
     if (!lp) return;
-    const next = !shareOn;
-    await lp.setScreenShareEnabled(next);
-    setShareOn(next);
+
+    // Already sharing → just stop, no permission needed
+    if (shareOn) {
+      await lp.setScreenShareEnabled(false);
+      setShareOn(false);
+      rebuildTiles();
+      return;
+    }
+
+    if (!canShareScreen) {
+      // No permission yet — toggle a request to the host (or cancel one)
+      if (screenShareRequested) {
+        await cancelScreenShareRequest({ roomId });
+      } else {
+        await requestScreenShare({ roomId });
+      }
+      return;
+    }
+
+    await lp.setScreenShareEnabled(true);
+    setShareOn(true);
     rebuildTiles();
   }
   async function leaveCall() {
@@ -298,7 +322,19 @@ export function VideoChatStrip({
           <button className={`vc-btn ${micOn ? "on" : "off"}`} onClick={toggleMic} title="Microphone">
             {micOn ? "🎙️" : "🔇"}
           </button>
-          <button className={`vc-btn ${shareOn ? "on" : ""}`} onClick={toggleShare} title="Screen share">
+          <button
+            className={`vc-btn ${shareOn ? "on" : ""} ${!canShareScreen && screenShareRequested ? "off" : ""}`}
+            onClick={toggleShare}
+            title={
+              shareOn
+                ? "Stop screen share"
+                : canShareScreen
+                  ? "Share your screen"
+                  : screenShareRequested
+                    ? "Waiting for host approval — click to cancel"
+                    : "Ask host for screen-share permission"
+            }
+          >
             🖥️
           </button>
         </div>

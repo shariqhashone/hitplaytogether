@@ -65,6 +65,9 @@ export default defineSchema({
     // Host-initiated moderation
     mutedByHost: v.optional(v.boolean()),
     kickedAt: v.optional(v.number()),
+    // Screen-share permission flow
+    canShareScreen: v.optional(v.boolean()),       // host grants
+    screenShareRequestedAt: v.optional(v.number()), // user's pending request ts
   })
     .index("by_room", ["roomId"])
     .index("by_user", ["userId"])

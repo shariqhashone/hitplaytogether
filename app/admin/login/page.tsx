@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
@@ -10,7 +10,8 @@ import { Brand } from "@/components/Nav";
 export default function AdminLoginPage() {
   const { signIn } = useAuthActions();
   const bootstrap = useMutation(api.users.bootstrap);
-  const me = useQuery(api.users.me);
+  const { isAuthenticated } = useConvexAuth();
+  const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

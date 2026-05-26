@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
@@ -17,18 +17,21 @@ const items = [
 ];
 
 export function AdminShell({ title, children }: { title: string; children: React.ReactNode }) {
-  const me = useQuery(api.users.me);
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuthActions();
 
   useEffect(() => {
-    if (me === null) router.replace("/admin/login");
+    if (isLoading) return;
+    if (!isAuthenticated) router.replace("/admin/login");
+    else if (me === null) router.replace("/admin/login");
     else if (me && !me.isAdmin) router.replace("/");
-  }, [me, router]);
+  }, [me, router, isAuthenticated, isLoading]);
 
-  if (me === undefined) return <div className="loader">Loading…</div>;
-  if (!me || !me.isAdmin) return <div className="loader">Redirecting…</div>;
+  if (isLoading || (isAuthenticated && me === undefined)) return <div className="loader">Loading…</div>;
+  if (!isAuthenticated || !me || !me.isAdmin) return <div className="loader">Redirecting…</div>;
 
   return (
     <>

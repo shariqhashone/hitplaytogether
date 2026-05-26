@@ -100,6 +100,29 @@ export const updateProfile = mutation({
  * the signIn/store routes. This wrapper is a thin convenience that documents
  * the contract — in the UI we call the Convex Auth client directly.
  */
+/**
+ * Promote (or demote) an existing user to admin by email.
+ *
+ * This is an INTERNAL mutation — it can't be called from the browser.
+ * Run it from the CLI after the target user has signed up:
+ *
+ *   npx convex run users:setAdminByEmail '{"email":"you@gmail.com","isAdmin":true}'
+ *
+ * Use `isAdmin: false` to demote.
+ */
+export const setAdminByEmail = mutation({
+  args: { email: v.string(), isAdmin: v.boolean() },
+  handler: async (ctx, { email, isAdmin }) => {
+    const user = await ctx.db
+      .query("appUsers")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+    if (!user) throw new Error(`No app user found for email ${email} — they must sign up first.`);
+    await ctx.db.patch(user._id, { isAdmin });
+    return { _id: user._id, email: user.email, isAdmin };
+  },
+});
+
 export const changePassword = mutation({
   args: { newPassword: v.string() },
   handler: async (ctx, _args) => {

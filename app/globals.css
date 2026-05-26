@@ -219,6 +219,26 @@ button{font-family:inherit;}
 .send{width:44px;height:44px;border-radius:10px;flex:none;cursor:pointer;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;border:none;}
 .send:disabled{opacity:.5;cursor:not-allowed;}
 
+/* emoji picker */
+.emoji-trigger{width:44px;height:44px;border-radius:10px;flex:none;cursor:pointer;background:var(--panel);border:1px solid var(--line);color:var(--txt);font-size:18px;display:flex;align-items:center;justify-content:center;transition:.15s;}
+.emoji-trigger:hover{border-color:#3a3a55;background:var(--panel-2);}
+.emoji-picker{position:absolute;bottom:54px;right:0;width:260px;max-height:240px;overflow-y:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:8px;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);z-index:60;}
+.emoji-btn{background:none;border:none;cursor:pointer;font-size:18px;padding:5px;border-radius:6px;transition:.1s;line-height:1;}
+.emoji-btn:hover{background:var(--panel);}
+
+/* floating emoji animation across the stage */
+.emoji-float-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:30;}
+.emoji-float{position:absolute;bottom:0;font-size:42px;animation:emoji-rise 3.2s ease-out forwards;filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));}
+@keyframes emoji-rise{
+  0%{transform:translateY(0) scale(.6) rotate(-8deg);opacity:0;}
+  10%{transform:translateY(-30px) scale(1) rotate(0deg);opacity:1;}
+  60%{transform:translateY(-260px) scale(1.05) rotate(6deg);opacity:1;}
+  100%{transform:translateY(-460px) scale(.85) rotate(-4deg);opacity:0;}
+}
+
+/* host's pending screen-share request banner */
+.share-request{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin-bottom:12px;border-radius:12px;background:linear-gradient(135deg,rgba(157,107,255,.18),rgba(61,225,208,.10));border:1px solid rgba(157,107,255,.4);font-size:13px;}
+
 /* VIDEO CHAT STRIP */
 .vc-strip{margin-top:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:13px 14px;}
 .vc-strip .vc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;}

@@ -2,23 +2,25 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Brand } from "@/components/Nav";
 import { AuthBootstrap } from "@/components/AuthBootstrap";
 import { YouTubePlayer, YTPlayerHandle } from "@/components/YouTubePlayer";
 import { VideoChatStrip } from "@/components/VideoChatStrip";
+import { EmojiToggle, isMostlyEmoji } from "@/components/EmojiPicker";
 
 export default function WatchRoomPage() {
   const params = useParams<{ id: string }>();
   const roomId = params.id as Id<"rooms">;
   const router = useRouter();
 
-  const data = useQuery(api.rooms.get, { roomId });
-  const messages = useQuery(api.messages.list, { roomId });
-  const presence = useQuery(api.presence.forRoom, { roomId });
-  const me = useQuery(api.users.me);
+  const { isAuthenticated } = useConvexAuth();
+  const data = useQuery(api.rooms.get, isAuthenticated ? { roomId } : "skip");
+  const messages = useQuery(api.messages.list, isAuthenticated ? { roomId } : "skip");
+  const presence = useQuery(api.presence.forRoom, isAuthenticated ? { roomId } : "skip");
+  const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
 
   const send = useMutation(api.messages.send);
   const setState = useMutation(api.presence.setState);
@@ -27,9 +29,13 @@ export default function WatchRoomPage() {
   const end = useMutation(api.rooms.end);
   const setParticipantMute = useMutation(api.rooms.setParticipantMute);
   const kickParticipant = useMutation(api.rooms.kickParticipant);
+  const setScreenSharePermission = useMutation(api.rooms.setScreenSharePermission);
 
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
+  const [floats, setFloats] = useState<Array<{ id: number; emoji: string; left: number }>>([]);
+  const seenMsgIdsRef = useRef<Set<string>>(new Set());
+  const floatIdRef = useRef(0);
   const [pinnedKey, setPinnedKey] = useState<string | null>(null);
   const [endedNotice, setEndedNotice] = useState<null | "ended" | "kicked">(null);
   const handleRef = useRef<YTPlayerHandle | null>(null);
@@ -58,10 +64,29 @@ export default function WatchRoomPage() {
     }
   }, [data?.room.status, data?.wasKicked, router, data]);
 
-  // scroll chat to bottom on new message
+  // scroll chat to bottom on new message + spawn float for emoji-only messages
   useEffect(() => {
     msgsRef.current?.scrollTo({ top: msgsRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages?.length]);
+    if (!messages) return;
+    // First load: mark all as seen so we don't spawn floats for history
+    if (seenMsgIdsRef.current.size === 0) {
+      for (const m of messages) seenMsgIdsRef.current.add(m._id);
+      return;
+    }
+    for (const m of messages) {
+      if (seenMsgIdsRef.current.has(m._id)) continue;
+      seenMsgIdsRef.current.add(m._id);
+      if (isMostlyEmoji(m.body)) {
+        const chars = Array.from(m.body.replace(/\s/g, ""));
+        for (const ch of chars) {
+          const id = ++floatIdRef.current;
+          const left = 8 + Math.random() * 70; // % across the stage
+          setFloats((cur) => [...cur, { id, emoji: ch, left }]);
+          setTimeout(() => setFloats((cur) => cur.filter((f) => f.id !== id)), 3200);
+        }
+      }
+    }
+  }, [messages]);
 
   // reconcile to host playback (every time state changes)
   useEffect(() => {
@@ -166,7 +191,41 @@ export default function WatchRoomPage() {
       </div>
 
       <div className="room-layout">
-        <div className="stage">
+        <div className="stage" style={{ position: "relative" }}>
+          <div className="emoji-float-layer">
+            {floats.map((f) => (
+              <span key={f.id} className="emoji-float" style={{ left: `${f.left}%` }}>
+                {f.emoji}
+              </span>
+            ))}
+          </div>
+
+          {data.meIsHost &&
+            data.participants
+              .filter((p) => p.screenShareRequestedAt)
+              .map((p) => (
+                <div className="share-request" key={p.userId}>
+                  <span><b>{p.displayName}</b> wants to share their screen</span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() =>
+                        setScreenSharePermission({ roomId, userId: p.userId, allowed: false })
+                      }
+                    >
+                      Deny
+                    </button>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() =>
+                        setScreenSharePermission({ roomId, userId: p.userId, allowed: true })
+                      }
+                    >
+                      Allow
+                    </button>
+                  </div>
+                </div>
+              ))}
           <div className="player">
             <YouTubePlayer
               videoId={room.videoId}
@@ -187,6 +246,8 @@ export default function WatchRoomPage() {
           <VideoChatStrip
             roomId={roomId}
             forceMicOff={data.myMutedByHost}
+            canShareScreen={data.myCanShareScreen}
+            screenShareRequested={!!data.myScreenShareRequestedAt}
             pinnedKey={pinnedKey}
             onPin={(k) => setPinnedKey((cur) => (cur === k ? null : k))}
           />
@@ -237,7 +298,7 @@ export default function WatchRoomPage() {
                       {st}
                     </span>
                     {data.meIsHost && !isSelf && p.role !== "host" && (
-                      <div style={{ display: "flex", gap: 4, marginLeft: 38, marginTop: 4 }}>
+                      <div style={{ display: "flex", gap: 4, marginLeft: 38, marginTop: 4, flexWrap: "wrap" }}>
                         <button
                           className="btn btn-ghost"
                           style={{ padding: "4px 8px", fontSize: 10 }}
@@ -250,6 +311,19 @@ export default function WatchRoomPage() {
                           }
                         >
                           {p.mutedByHost ? "Unmute" : "Mute"}
+                        </button>
+                        <button
+                          className="btn btn-ghost"
+                          style={{ padding: "4px 8px", fontSize: 10, color: p.canShareScreen ? "var(--cyan)" : undefined }}
+                          onClick={() =>
+                            setScreenSharePermission({
+                              roomId,
+                              userId: p.userId,
+                              allowed: !p.canShareScreen,
+                            })
+                          }
+                        >
+                          {p.canShareScreen ? "Revoke share" : "Allow share"}
                         </button>
                         <button
                           className="btn btn-ghost"
@@ -307,6 +381,7 @@ export default function WatchRoomPage() {
                 }}
                 onBlur={() => setState({ roomId, state: "online" }).catch(() => {})}
               />
+              <EmojiToggle onPick={(em) => setDraft((d) => d + em)} />
               <button type="submit" className="send" disabled={!draft.trim()}>
                 ➤
               </button>

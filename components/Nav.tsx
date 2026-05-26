@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
@@ -17,6 +17,9 @@ export function Brand() {
 }
 
 export function PublicNav() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
+
   return (
     <nav className="nav">
       <Brand />
@@ -27,19 +30,40 @@ export function PublicNav() {
         <a href="#faq">FAQ</a>
       </div>
       <div className="nav-right">
-        <Link href="/login" className="btn btn-ghost btn-sm">
-          Log in
-        </Link>
-        <Link href="/signup" className="btn btn-primary btn-sm">
-          Sign up free
-        </Link>
+        {isLoading ? null : isAuthenticated ? (
+          <>
+            <Link href="/dashboard" className="btn btn-ghost btn-sm">
+              Dashboard
+            </Link>
+            <Link href="/create-room" className="btn btn-primary btn-sm">
+              + New room
+            </Link>
+            <Link href="/profile" aria-label="Profile">
+              {me?.avatarUrl ? (
+                <img className="avatar" src={me.avatarUrl} alt="" />
+              ) : (
+                <span className="avatar" style={{ background: "var(--panel-2)" }} />
+              )}
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link href="/login" className="btn btn-ghost btn-sm">
+              Log in
+            </Link>
+            <Link href="/signup" className="btn btn-primary btn-sm">
+              Sign up free
+            </Link>
+          </>
+        )}
       </div>
     </nav>
   );
 }
 
 export function AppNav({ active }: { active?: "home" | "rooms" | "profile" }) {
-  const me = useQuery(api.users.me);
+  const { isAuthenticated } = useConvexAuth();
+  const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
   const { signOut } = useAuthActions();
   const router = useRouter();
   return (

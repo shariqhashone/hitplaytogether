@@ -137,6 +137,8 @@ export const get = query({
             avatarUrl: u?.avatarUrl,
             mutedByHost: !!p.mutedByHost,
             kickedAt: p.kickedAt,
+            canShareScreen: !!p.canShareScreen,
+            screenShareRequestedAt: p.screenShareRequestedAt,
           };
         }),
     );
@@ -145,6 +147,8 @@ export const get = query({
     const myParticipant = participants.find((p) => p.userId === me._id);
     const wasKicked = !!myParticipant?.kickedAt;
     const myMutedByHost = !!myParticipant?.mutedByHost;
+    const myCanShareScreen = room.hostId === me._id || !!myParticipant?.canShareScreen;
+    const myScreenShareRequestedAt = myParticipant?.screenShareRequestedAt;
 
     return {
       room,
@@ -152,6 +156,8 @@ export const get = query({
       meIsHost: room.hostId === me._id,
       wasKicked,
       myMutedByHost,
+      myCanShareScreen,
+      myScreenShareRequestedAt,
     };
   },
 });
@@ -174,6 +180,54 @@ export const setParticipantMute = mutation({
       .first();
     if (!p) throw new Error("Participant not found");
     await ctx.db.patch(p._id, { mutedByHost: muted });
+  },
+});
+
+/** Non-host asks the host for screen-share permission. */
+export const requestScreenShare = mutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, { roomId }) => {
+    const me = await requireUser(ctx);
+    const room = await ctx.db.get(roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.hostId === me._id) return; // host doesn't need to request
+    const p = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", me._id))
+      .first();
+    if (!p) throw new Error("Not a participant of this room");
+    await ctx.db.patch(p._id, { screenShareRequestedAt: Date.now() });
+  },
+});
+
+/** Non-host cancels their own pending request. */
+export const cancelScreenShareRequest = mutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, { roomId }) => {
+    const me = await requireUser(ctx);
+    const p = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", me._id))
+      .first();
+    if (!p) return;
+    await ctx.db.patch(p._id, { screenShareRequestedAt: undefined });
+  },
+});
+
+/** Host grants (or denies) screen-share permission. */
+export const setScreenSharePermission = mutation({
+  args: { roomId: v.id("rooms"), userId: v.id("appUsers"), allowed: v.boolean() },
+  handler: async (ctx, { roomId, userId, allowed }) => {
+    await hostOnly(ctx, roomId);
+    const p = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", userId))
+      .first();
+    if (!p) throw new Error("Participant not found");
+    await ctx.db.patch(p._id, {
+      canShareScreen: allowed,
+      screenShareRequestedAt: undefined, // resolve the request either way
+    });
   },
 });
 

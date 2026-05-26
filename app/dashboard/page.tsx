@@ -1,15 +1,16 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { AppNav } from "@/components/Nav";
 import { AuthBootstrap } from "@/components/AuthBootstrap";
 
 export default function DashboardPage() {
-  const me = useQuery(api.users.me);
-  const rooms = useQuery(api.rooms.myRooms);
+  const { isAuthenticated } = useConvexAuth();
+  const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
+  const rooms = useQuery(api.rooms.myRooms, isAuthenticated ? {} : "skip");
   const join = useMutation(api.rooms.join);
   const router = useRouter();
   const [code, setCode] = useState("");
