@@ -135,11 +135,59 @@ export const get = query({
             role: p.role,
             displayName: u?.displayName ?? "Unknown",
             avatarUrl: u?.avatarUrl,
+            mutedByHost: !!p.mutedByHost,
+            kickedAt: p.kickedAt,
           };
         }),
     );
 
-    return { room, participants: withUsers, meIsHost: room.hostId === me._id };
+    // Has the caller been kicked from this room?
+    const myParticipant = participants.find((p) => p.userId === me._id);
+    const wasKicked = !!myParticipant?.kickedAt;
+    const myMutedByHost = !!myParticipant?.mutedByHost;
+
+    return {
+      room,
+      participants: withUsers,
+      meIsHost: room.hostId === me._id,
+      wasKicked,
+      myMutedByHost,
+    };
+  },
+});
+
+async function hostOnly(ctx: any, roomId: any) {
+  const me = await requireUser(ctx);
+  const room = await ctx.db.get(roomId);
+  if (!room) throw new Error("Room not found");
+  if (room.hostId !== me._id) throw new Error("Host only");
+  return { me, room };
+}
+
+export const setParticipantMute = mutation({
+  args: { roomId: v.id("rooms"), userId: v.id("appUsers"), muted: v.boolean() },
+  handler: async (ctx, { roomId, userId, muted }) => {
+    await hostOnly(ctx, roomId);
+    const p = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", userId))
+      .first();
+    if (!p) throw new Error("Participant not found");
+    await ctx.db.patch(p._id, { mutedByHost: muted });
+  },
+});
+
+export const kickParticipant = mutation({
+  args: { roomId: v.id("rooms"), userId: v.id("appUsers") },
+  handler: async (ctx, { roomId, userId }) => {
+    const { room } = await hostOnly(ctx, roomId);
+    if (userId === room.hostId) throw new Error("Cannot kick the host");
+    const p = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", userId))
+      .first();
+    if (!p) throw new Error("Participant not found");
+    await ctx.db.patch(p._id, { kickedAt: Date.now(), leftAt: Date.now() });
   },
 });
 

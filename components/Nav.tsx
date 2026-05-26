@@ -49,7 +49,7 @@ export function AppNav({ active }: { active?: "home" | "rooms" | "profile" }) {
         <Link href="/dashboard" className={active === "home" ? "active" : ""}>
           Home
         </Link>
-        <Link href="/dashboard#rooms" className={active === "rooms" ? "active" : ""}>
+        <Link href="/my-rooms" className={active === "rooms" ? "active" : ""}>
           My rooms
         </Link>
         <Link href="/profile" className={active === "profile" ? "active" : ""}>

@@ -62,6 +62,9 @@ export default defineSchema({
     role: v.union(v.literal("host"), v.literal("participant")),
     joinedAt: v.number(),
     leftAt: v.optional(v.number()),
+    // Host-initiated moderation
+    mutedByHost: v.optional(v.boolean()),
+    kickedAt: v.optional(v.number()),
   })
     .index("by_room", ["roomId"])
     .index("by_user", ["userId"])

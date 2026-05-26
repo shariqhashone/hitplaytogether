@@ -25,9 +25,13 @@ export default function WatchRoomPage() {
   const setPlayback = useMutation(api.rooms.setPlayback);
   const leave = useMutation(api.rooms.leave);
   const end = useMutation(api.rooms.end);
+  const setParticipantMute = useMutation(api.rooms.setParticipantMute);
+  const kickParticipant = useMutation(api.rooms.kickParticipant);
 
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null);
+  const [endedNotice, setEndedNotice] = useState<null | "ended" | "kicked">(null);
   const handleRef = useRef<YTPlayerHandle | null>(null);
   const msgsRef = useRef<HTMLDivElement>(null);
 
@@ -38,6 +42,21 @@ export default function WatchRoomPage() {
     const t = setInterval(() => setState({ roomId, state: "online" }).catch(() => {}), 15_000);
     return () => clearInterval(t);
   }, [data, roomId, setState]);
+
+  // auto-leave when room ends or the user is kicked
+  useEffect(() => {
+    if (!data) return;
+    if (data.wasKicked) {
+      setEndedNotice("kicked");
+      const t = setTimeout(() => router.push("/dashboard"), 4000);
+      return () => clearTimeout(t);
+    }
+    if (data.room.status === "ended") {
+      setEndedNotice("ended");
+      const t = setTimeout(() => router.push("/dashboard"), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [data?.room.status, data?.wasKicked, router, data]);
 
   // scroll chat to bottom on new message
   useEffect(() => {
@@ -101,6 +120,30 @@ export default function WatchRoomPage() {
   return (
     <>
       <AuthBootstrap />
+      {endedNotice && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(10,10,15,.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 500, backdropFilter: "blur(8px)",
+          }}
+        >
+          <div className="auth-card" style={{ textAlign: "center", width: 380 }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>
+              {endedNotice === "ended" ? "🎬" : "🚪"}
+            </div>
+            <h2 style={{ fontSize: 19, marginBottom: 8 }}>
+              {endedNotice === "ended" ? "Room ended" : "Removed from room"}
+            </h2>
+            <p style={{ fontSize: 13, color: "var(--txt-3)", marginBottom: 18 }}>
+              {endedNotice === "ended"
+                ? "The host ended this watch party."
+                : "The host removed you from this room."}
+            </p>
+            <p style={{ fontSize: 11, color: "var(--txt-3)" }}>Returning to your dashboard…</p>
+          </div>
+        </div>
+      )}
       <div className="room-top">
         <div className="l">
           <Brand />
@@ -141,7 +184,12 @@ export default function WatchRoomPage() {
             />
           </div>
 
-          <VideoChatStrip roomId={roomId} />
+          <VideoChatStrip
+            roomId={roomId}
+            forceMicOff={data.myMutedByHost}
+            pinnedKey={pinnedKey}
+            onPin={(k) => setPinnedKey((cur) => (cur === k ? null : k))}
+          />
 
           <div className="now-playing">
             <div className="ic">▶</div>
@@ -168,22 +216,53 @@ export default function WatchRoomPage() {
               {data.participants.map((p) => {
                 const pr = presence?.find((x) => x.userId === p.userId);
                 const st = pr?.state ?? "offline";
+                const isSelf = p.userId === me?._id;
                 return (
-                  <div className="p" key={p.userId}>
+                  <div className="p" key={p.userId} style={{ flexWrap: "wrap" }}>
                     {p.avatarUrl ? (
                       <img src={p.avatarUrl} alt="" />
                     ) : (
                       <span className="avatar" style={{ width: 28, height: 28, background: "var(--panel-2)" }} />
                     )}
                     <span className="nm">
-                      {p.displayName}
+                      {isSelf ? "You" : p.displayName}
                       {p.role === "host" && (
                         <span style={{ color: "var(--brand-2)", fontSize: 10, marginLeft: 6 }}>· Host</span>
+                      )}
+                      {p.mutedByHost && (
+                        <span style={{ color: "var(--brand)", fontSize: 10, marginLeft: 6 }}>· muted</span>
                       )}
                     </span>
                     <span className={`st ${st === "typing" ? "typing" : st === "offline" ? "offline" : ""}`}>
                       {st}
                     </span>
+                    {data.meIsHost && !isSelf && p.role !== "host" && (
+                      <div style={{ display: "flex", gap: 4, marginLeft: 38, marginTop: 4 }}>
+                        <button
+                          className="btn btn-ghost"
+                          style={{ padding: "4px 8px", fontSize: 10 }}
+                          onClick={() =>
+                            setParticipantMute({
+                              roomId,
+                              userId: p.userId,
+                              muted: !p.mutedByHost,
+                            })
+                          }
+                        >
+                          {p.mutedByHost ? "Unmute" : "Mute"}
+                        </button>
+                        <button
+                          className="btn btn-ghost"
+                          style={{ padding: "4px 8px", fontSize: 10, color: "var(--brand)" }}
+                          onClick={() => {
+                            if (confirm(`Kick ${p.displayName} from the room?`))
+                              kickParticipant({ roomId, userId: p.userId });
+                          }}
+                        >
+                          Kick
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
