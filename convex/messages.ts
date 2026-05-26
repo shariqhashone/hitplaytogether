@@ -28,9 +28,20 @@ export const list = query({
       .order("desc")
       .take(limit ?? 100);
 
+    // Build a set of users the host has muted in this room — their messages
+    // are hidden from everyone (and they're blocked from sending new ones
+    // in `send` below).
+    const parts = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room", (q) => q.eq("roomId", roomId))
+      .collect();
+    const mutedUserIds = new Set(
+      parts.filter((p) => p.mutedByHost).map((p) => String(p.userId)),
+    );
+
     const enriched = await Promise.all(
       rows
-        .filter((m) => !m.deletedAt)
+        .filter((m) => !m.deletedAt && !mutedUserIds.has(String(m.userId)))
         .reverse()
         .map(async (m) => {
           const u = await ctx.db.get(m.userId);
@@ -63,6 +74,9 @@ export const send = mutation({
       .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", me._id))
       .first();
     if (!member) throw new Error("Not a participant of this room");
+    if (member.mutedByHost) {
+      throw new Error("You're muted by the host — you can't send messages.");
+    }
 
     const trimmed = body.trim();
     if (!trimmed) throw new Error("Message is empty");

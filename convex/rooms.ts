@@ -121,9 +121,12 @@ export const get = query({
       .collect();
 
     const isMember = participants.some((p) => p.userId === me._id);
-    // For private rooms, non-members get a clear flag rather than a thrown
-    // error — the watch-room page uses it to redirect to /join-room.
-    if (!isMember && room.privacy === "private") {
+    const isHost = room.hostId === me._id;
+    // Any non-member (host is always a member by construction) gets a flag
+    // instead of full data. The watch-room page then either auto-joins
+    // (privacy=link) or redirects to /join-room (privacy=private). This
+    // prevents the VideoChatStrip from racing ahead of the join.
+    if (!isMember && !isHost) {
       return {
         accessDenied: true as const,
         roomName: room.name,
@@ -307,7 +310,16 @@ export const join = mutation({
       .first();
 
     if (existing) {
-      if (existing.leftAt) await ctx.db.patch(existing._id, { leftAt: undefined, joinedAt: Date.now() });
+      // Entering the room code is a fresh "I want back in" intent — clear
+      // both `leftAt` and `kickedAt`. Kicks are per-session, the host can
+      // re-kick if needed. (For a permanent ban use the admin functions.)
+      if (existing.leftAt || existing.kickedAt) {
+        await ctx.db.patch(existing._id, {
+          leftAt: undefined,
+          kickedAt: undefined,
+          joinedAt: Date.now(),
+        });
+      }
       return { roomId: room._id };
     }
 

@@ -190,7 +190,7 @@ export default function WatchRoomPage() {
             <p style={{ fontSize: 13, color: "var(--txt-3)", marginBottom: 18 }}>
               {endedNotice === "ended"
                 ? "The host ended this watch party."
-                : "The host removed you from this room."}
+                : "The host removed you from this room. You can rejoin with the room code if they share it again."}
             </p>
             <p style={{ fontSize: 11, color: "var(--txt-3)" }}>Returning to your dashboard…</p>
           </div>
@@ -401,19 +401,35 @@ export default function WatchRoomPage() {
                 ))
               )}
             </div>
+            {data.myMutedByHost && (
+              <div
+                style={{
+                  fontSize: 11, color: "var(--brand)", marginBottom: 8,
+                  padding: "6px 10px", borderRadius: 8,
+                  background: "rgba(255,77,109,.1)", border: "1px solid rgba(255,77,109,.3)",
+                }}
+              >
+                🔇 You've been muted by the host. Your messages are hidden until the mute is lifted.
+              </div>
+            )}
             <form className="chat-input" onSubmit={onSend}>
               <input
                 className="field"
-                placeholder="Send a message…"
+                placeholder={data.myMutedByHost ? "You're muted by the host" : "Send a message…"}
                 value={draft}
                 onChange={(e) => {
                   setDraft(e.target.value);
                   setState({ roomId, state: e.target.value ? "typing" : "online" }).catch(() => {});
                 }}
                 onBlur={() => setState({ roomId, state: "online" }).catch(() => {})}
+                disabled={data.myMutedByHost}
               />
               <EmojiToggle onPick={(em) => setDraft((d) => d + em)} />
-              <button type="submit" className="send" disabled={!draft.trim()}>
+              <button
+                type="submit"
+                className="send"
+                disabled={!draft.trim() || data.myMutedByHost}
+              >
                 ➤
               </button>
             </form>
