@@ -24,7 +24,7 @@ export const listUsers = query({
   },
   handler: async (ctx, { search, status, limit }) => {
     await requireAdmin(ctx);
-    let q = ctx.db.query("appUsers");
+    let q: any = ctx.db.query("appUsers");
     if (status) q = q.withIndex("by_status", (i: any) => i.eq("status", status));
     const rows = await q.order("desc").take(limit ?? 100);
     const s = (search ?? "").trim().toLowerCase();
@@ -100,7 +100,7 @@ export const listRooms = query({
   },
   handler: async (ctx, { status, limit }) => {
     await requireAdmin(ctx);
-    let q = ctx.db.query("rooms");
+    let q: any = ctx.db.query("rooms");
     if (status) q = q.withIndex("by_status", (i: any) => i.eq("status", status));
     const rows = await q.order("desc").take(limit ?? 100);
     return await Promise.all(
@@ -178,7 +178,7 @@ export const listReports = query({
   },
   handler: async (ctx, { status, limit }) => {
     await requireAdmin(ctx);
-    let q = ctx.db.query("reports");
+    let q: any = ctx.db.query("reports");
     if (status) q = q.withIndex("by_status", (i: any) => i.eq("status", status));
     const rows = await q.order("desc").take(limit ?? 100);
     return await Promise.all(

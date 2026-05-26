@@ -164,7 +164,17 @@ function defaultBlock(section: string): any {
   }
 }
 
-function BlockEditor({ block, index, total, onSave, onToggle, onDelete, onMove }: any) {
+type BlockEditorProps = {
+  block: { _id: string; data: any; visible: boolean };
+  index: number;
+  total: number;
+  onSave: (d: any) => void | Promise<void>;
+  onToggle: () => void;
+  onDelete: () => void;
+  onMove: (dir: number) => void | Promise<unknown>;
+};
+
+function BlockEditor({ block, index, total, onSave, onToggle, onDelete, onMove }: BlockEditorProps) {
   const [data, setData] = useState<any>(block.data);
   const [dirty, setDirty] = useState(false);
   useEffect(() => setData(block.data), [block._id]);

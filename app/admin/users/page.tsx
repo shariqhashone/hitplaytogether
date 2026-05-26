@@ -69,12 +69,12 @@ export default function AdminUsersPage() {
               <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : "—"}</td>
               <td className="actions">
                 {u.status === "active" && !u.isAdmin && (
-                  <button className="btn btn-ghost" onClick={() => ban({ userId: u._id as Id<"users"> })}>
+                  <button className="btn btn-ghost" onClick={() => ban({ userId: u._id as Id<"appUsers"> })}>
                     Ban
                   </button>
                 )}
                 {u.status === "banned" && (
-                  <button className="btn btn-ghost" onClick={() => unban({ userId: u._id as Id<"users"> })}>
+                  <button className="btn btn-ghost" onClick={() => unban({ userId: u._id as Id<"appUsers"> })}>
                     Un-ban
                   </button>
                 )}
@@ -83,7 +83,7 @@ export default function AdminUsersPage() {
                     className="btn btn-primary"
                     onClick={() => {
                       if (confirm(`Delete ${u.displayName}? This anonymises their account.`))
-                        del({ userId: u._id as Id<"users"> });
+                        del({ userId: u._id as Id<"appUsers"> });
                     }}
                   >
                     Delete
