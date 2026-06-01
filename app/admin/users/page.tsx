@@ -16,6 +16,17 @@ export default function AdminUsersPage() {
   const [status, setStatus] = useState<Status | undefined>(undefined);
   const [openId, setOpenId] = useState<Id<"appUsers"> | null>(null);
   const users = useQuery(api.admin.listUsers, canQuery ? { search, status, limit: 200 } : "skip");
+  const ban = useMutation(api.admin.banUser);
+  const unban = useMutation(api.admin.unbanUser);
+
+  async function quickBan(e: React.MouseEvent, u: any) {
+    e.stopPropagation();
+    try {
+      if (u.status === "banned") await unban({ userId: u._id });
+      else if (confirm(`Ban ${u.displayName}? They won't be able to use the platform.`))
+        await ban({ userId: u._id });
+    } catch {}
+  }
 
   return (
     <AdminShell title="Users" subtitle="Accounts, roles & moderation">
@@ -47,7 +58,7 @@ export default function AdminUsersPage() {
         <table className="tbl">
           <thead>
             <tr>
-              <th>User</th><th>Email</th><th>Status</th><th>Joined</th><th>Last login</th><th></th>
+              <th>User</th><th>Email</th><th>Status</th><th>Joined</th><th>Last login</th><th>Actions</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -67,6 +78,16 @@ export default function AdminUsersPage() {
                 <td><span className={`badge ${u.status}`}>{u.status}</span></td>
                 <td>{new Date(u._creationTime).toLocaleDateString()}</td>
                 <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : "—"}</td>
+                <td className="actions" onClick={(e) => e.stopPropagation()}>
+                  {!u.isAdmin && u.status !== "deleted" && (
+                    <button
+                      className={`btn ${u.status === "banned" ? "btn-ghost" : "btn-primary"}`}
+                      onClick={(e) => quickBan(e, u)}
+                    >
+                      {u.status === "banned" ? "Un-ban" : "Ban"}
+                    </button>
+                  )}
+                </td>
                 <td style={{ color: "var(--txt-3)", fontSize: 16 }}>›</td>
               </tr>
             ))}

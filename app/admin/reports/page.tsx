@@ -14,6 +14,7 @@ export default function AdminReportsPage() {
   const [status, setStatus] = useState<Status | undefined>("open");
   const reports = useQuery(api.admin.listReports, canQuery ? { status, limit: 200 } : "skip");
   const update = useMutation(api.admin.updateReport);
+  const ban = useMutation(api.admin.banUser);
 
   return (
     <AdminShell title="Reports" subtitle="Moderation queue">
@@ -57,6 +58,18 @@ export default function AdminReportsPage() {
                 )}
                 {r.status !== "dismissed" && (
                   <button className="btn btn-ghost" onClick={() => update({ reportId: r._id as Id<"reports">, status: "dismissed" })}>Dismiss</button>
+                )}
+                {r.targetUserId && (
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: "var(--brand)" }}
+                    onClick={() => {
+                      if (confirm(`Ban ${r.targetName ?? "this user"}?`))
+                        ban({ userId: r.targetUserId as Id<"appUsers"> });
+                    }}
+                  >
+                    Ban user
+                  </button>
                 )}
               </td>
             </tr>

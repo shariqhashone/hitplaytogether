@@ -178,6 +178,46 @@ export const endRoom = mutation({
   },
 });
 
+// ---- in-room moderation (admin overrides the host) ----
+
+async function findParticipant(ctx: any, roomId: Id<"rooms">, userId: Id<"appUsers">) {
+  return await ctx.db
+    .query("roomParticipants")
+    .withIndex("by_room_user", (q: any) => q.eq("roomId", roomId).eq("userId", userId))
+    .first();
+}
+
+export const muteInRoom = mutation({
+  args: { roomId: v.id("rooms"), userId: v.id("appUsers"), muted: v.boolean() },
+  handler: async (ctx, { roomId, userId, muted }) => {
+    const admin = await requireAdmin(ctx);
+    const p = await findParticipant(ctx, roomId, userId);
+    if (!p) throw new Error("That user isn't in this room.");
+    await ctx.db.patch(p._id, { mutedByHost: muted });
+    await logAction(ctx, admin._id, muted ? "mute_in_room" : "unmute_in_room", "room", roomId, { userId });
+  },
+});
+
+export const kickFromRoom = mutation({
+  args: { roomId: v.id("rooms"), userId: v.id("appUsers") },
+  handler: async (ctx, { roomId, userId }) => {
+    const admin = await requireAdmin(ctx);
+    const p = await findParticipant(ctx, roomId, userId);
+    if (!p) throw new Error("That user isn't in this room.");
+    await ctx.db.patch(p._id, { kickedAt: Date.now(), leftAt: Date.now() });
+    await logAction(ctx, admin._id, "kick_from_room", "room", roomId, { userId });
+  },
+});
+
+export const deleteMessage = mutation({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, { messageId }) => {
+    const admin = await requireAdmin(ctx);
+    await ctx.db.patch(messageId, { deletedAt: Date.now() });
+    await logAction(ctx, admin._id, "delete_message", "message", messageId);
+  },
+});
+
 // =============== reports ===============
 
 export const listReports = query({

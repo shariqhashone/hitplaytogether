@@ -73,6 +73,10 @@ export default function AdminRoomsPage() {
 function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => void }) {
   const data = useQuery(api.admin.getRoom, { roomId });
   const endRoom = useMutation(api.admin.endRoom);
+  const muteInRoom = useMutation(api.admin.muteInRoom);
+  const kickFromRoom = useMutation(api.admin.kickFromRoom);
+  const deleteMessage = useMutation(api.admin.deleteMessage);
+  const ban = useMutation(api.admin.banUser);
   const [busy, setBusy] = useState(false);
 
   const room = data?.room;
@@ -142,7 +146,7 @@ function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => v
                 <div className="empty" style={{ padding: 20 }}>Nobody here.</div>
               ) : (
                 data.participants.map((p) => (
-                  <div className="list-row" key={p._id}>
+                  <div className="list-row" key={p._id} style={{ flexWrap: "wrap" }}>
                     <div>
                       <div className="t">
                         {p.displayName ?? "Unknown"}
@@ -152,6 +156,24 @@ function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => v
                       <div className="s">{p.email}</div>
                     </div>
                     <span className={`badge ${p.leftAt ? "ended" : "active"} r`}>{p.leftAt ? "left" : "online"}</span>
+                    {p.role !== "host" && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, width: "100%" }}>
+                        <button className="btn btn-ghost" style={{ padding: "4px 9px", fontSize: 11 }} disabled={busy}
+                          onClick={() => muteInRoom({ roomId, userId: p.userId, muted: !p.mutedByHost })}>
+                          {p.mutedByHost ? "Unmute" : "Mute"}
+                        </button>
+                        {!p.leftAt && (
+                          <button className="btn btn-ghost" style={{ padding: "4px 9px", fontSize: 11 }} disabled={busy}
+                            onClick={() => { if (confirm(`Kick ${p.displayName}?`)) kickFromRoom({ roomId, userId: p.userId }); }}>
+                            Kick
+                          </button>
+                        )}
+                        <button className="btn btn-ghost" style={{ padding: "4px 9px", fontSize: 11, color: "var(--brand)" }} disabled={busy}
+                          onClick={() => { if (confirm(`Ban ${p.displayName} from the platform?`)) ban({ userId: p.userId }); }}>
+                          Ban
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -162,9 +184,18 @@ function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => v
               ) : (
                 <div className="transcript">
                   {data.messages.map((m) => (
-                    <div className={`m${m.deletedAt ? " del" : ""}`} key={m._id}>
+                    <div className={`m${m.deletedAt ? " del" : ""}`} key={m._id} style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span className="a">{m.authorName ?? "Unknown"}</span>
-                      {m.body}
+                      <span style={{ flex: 1 }}>{m.body}</span>
+                      {!m.deletedAt && (
+                        <button
+                          title="Delete message"
+                          onClick={() => deleteMessage({ messageId: m._id })}
+                          style={{ background: "none", border: "none", color: "var(--txt-3)", cursor: "pointer", fontSize: 13, lineHeight: 1 }}
+                        >
+                          🗑
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
