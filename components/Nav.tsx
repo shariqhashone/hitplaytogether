@@ -32,6 +32,11 @@ export function PublicNav() {
       <div className="nav-right">
         {isLoading ? null : isAuthenticated ? (
           <>
+            {me?.isAdmin && (
+              <Link href="/admin" className="btn btn-ghost btn-sm admin-link">
+                ⚙ Manage
+              </Link>
+            )}
             <Link href="/dashboard" className="btn btn-ghost btn-sm">
               Dashboard
             </Link>
@@ -81,6 +86,11 @@ export function AppNav({ active }: { active?: "home" | "rooms" | "profile" }) {
         </Link>
       </div>
       <div className="nav-right">
+        {me?.isAdmin && (
+          <Link href="/admin" className="btn btn-ghost btn-sm admin-link">
+            ⚙ Manage Dashboard
+          </Link>
+        )}
         <Link href="/create-room" className="btn btn-primary btn-sm">
           + New room
         </Link>

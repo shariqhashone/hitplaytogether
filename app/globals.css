@@ -52,6 +52,8 @@ button{font-family:inherit;}
 .btn-ghost{background:transparent;color:var(--txt);border:1px solid var(--line);}
 .btn-ghost:hover{border-color:#3a3a55;background:var(--panel);}
 .btn-sm{padding:8px 15px;font-size:12px;}
+.admin-link{color:var(--violet);border-color:rgba(157,107,255,.35);background:rgba(157,107,255,.08);}
+.admin-link:hover{border-color:var(--violet);background:rgba(157,107,255,.16);}
 .btn-block{width:100%;justify-content:center;}
 
 .avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;border:1.5px solid var(--line);flex:none;}
