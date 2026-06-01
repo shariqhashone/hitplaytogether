@@ -74,6 +74,9 @@ export default function MyRoomsPage() {
                   </div>
                   <div className="meta">
                     <h4>{r.name}</h4>
+                    <div className="vid" title={r.videoUrl}>
+                      🎬 {r.videoTitle || r.videoUrl || `youtu.be/${r.videoId}`}
+                    </div>
                     <div className="sub">
                       👥 {r.participantCount} ·{" "}
                       {r.role === "host" ? "Hosting" : "Joined"} ·{" "}
