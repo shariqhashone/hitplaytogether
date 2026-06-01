@@ -176,6 +176,7 @@ button{font-family:inherit;}
 .room-thumb .mini-play{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;}
 .room-thumb .mini-play::after{content:'';width:0;height:0;border-left:12px solid #fff;border-top:8px solid transparent;border-bottom:8px solid transparent;margin-left:3px;}
 .room-thumb .live{position:absolute;top:10px;left:10px;font-size:9px;font-weight:700;letter-spacing:1px;background:var(--brand);color:#fff;padding:4px 9px;border-radius:5px;}
+.room-thumb .live.ended-tag{background:rgba(20,20,28,.82);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(4px);}
 .room-card .meta{padding:14px 15px;}
 .room-card .meta h4{font-size:14px;font-weight:600;}
 .room-card .meta .sub{font-size:11.5px;color:var(--txt-3);margin-top:5px;}

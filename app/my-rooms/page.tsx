@@ -67,14 +67,7 @@ export default function MyRoomsPage() {
                   <div className="room-thumb">
                     <img src={`https://img.youtube.com/vi/${r.videoId}/hqdefault.jpg`} alt="" />
                     {r.status === "active" && <span className="live">● LIVE</span>}
-                    {r.status === "ended" && (
-                      <span
-                        className="live"
-                        style={{ background: "var(--panel-2)", color: "var(--txt-3)", border: "1px solid var(--line)" }}
-                      >
-                        ENDED
-                      </span>
-                    )}
+                    {r.status === "ended" && <span className="live ended-tag">ENDED</span>}
                     <div className="ov">
                       <span className="mini-play" />
                     </div>

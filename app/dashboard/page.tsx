@@ -90,14 +90,7 @@ export default function DashboardPage() {
                           alt=""
                         />
                         {r.status === "active" && <span className="live">● LIVE</span>}
-                        {ended && (
-                          <span
-                            className="live"
-                            style={{ background: "var(--panel-2)", color: "var(--txt-3)", border: "1px solid var(--line)" }}
-                          >
-                            ENDED
-                          </span>
-                        )}
+                        {ended && <span className="live ended-tag">ENDED</span>}
                         <div className="ov">
                           <span className="mini-play" />
                         </div>
