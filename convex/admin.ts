@@ -118,7 +118,7 @@ export const listRooms = query({
     await requireAdmin(ctx);
     let q: any = ctx.db.query("rooms");
     if (status) q = q.withIndex("by_status", (i: any) => i.eq("status", status));
-    const rows = await q.order("desc").take(limit ?? 100);
+    const rows = (await q.order("desc").take(limit ?? 100)) as Doc<"rooms">[];
     return await Promise.all(
       rows.map(async (r) => {
         const host = await ctx.db.get(r.hostId);
@@ -259,7 +259,7 @@ export const listReports = query({
     await requireAdmin(ctx);
     let q: any = ctx.db.query("reports");
     if (status) q = q.withIndex("by_status", (i: any) => i.eq("status", status));
-    const rows = await q.order("desc").take(limit ?? 100);
+    const rows = (await q.order("desc").take(limit ?? 100)) as Doc<"reports">[];
     return await Promise.all(
       rows.map(async (r) => {
         const reporter = await ctx.db.get(r.reporterId);
