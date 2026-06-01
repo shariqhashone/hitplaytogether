@@ -21,7 +21,11 @@ type TileState = {
   identity: string;
   name: string;
   kind: TileKind;
-  videoEl?: HTMLVideoElement;
+  // The LiveKit video track itself. Each Tile attaches it to its OWN <video>
+  // element, so the same track can render in the strip AND the pinned view
+  // without the two fighting over a single shared element (which froze video
+  // when un-pinning).
+  track?: any;
   cameraOn: boolean;
   micOn: boolean;
   isLocal: boolean;
@@ -85,7 +89,7 @@ export const VideoChatStrip = forwardRef<VideoChatStripHandle, VideoChatStripPro
     presentToStage: async () => {
       const lp = roomRef.current?.localParticipant as LocalParticipant | undefined;
       if (!lp) return;
-      await lp.setScreenShareEnabled(true);
+      await lp.setScreenShareEnabled(true, { audio: true });
       setShareOn(true);
       rebuildTiles();
     },
@@ -169,21 +173,14 @@ export const VideoChatStrip = forwardRef<VideoChatStripHandle, VideoChatStripPro
     const screenAudioPub = p.getTrackPublication(Track.Source.ScreenShareAudio);
 
     // ----- camera tile (always present, even if camera is off) -----
-    let videoEl: HTMLVideoElement | undefined;
-    if (camPub?.track && !camPub.isMuted) {
-      videoEl = document.createElement("video");
-      videoEl.autoplay = true;
-      videoEl.playsInline = true;
-      videoEl.muted = true;
-      camPub.track.attach(videoEl);
-    }
+    const camTrack = camPub?.track && !camPub.isMuted ? camPub.track : undefined;
     // (Audio is attached event-driven via TrackSubscribed — not here.)
     tiles.push({
       key: `${p.identity}:camera`,
       identity: p.identity,
       name: p.name || p.identity,
       kind: "camera",
-      videoEl,
+      track: camTrack,
       cameraOn: !!camPub && !camPub.isMuted,
       micOn: !!micPub && !micPub.isMuted,
       isLocal,
@@ -195,18 +192,12 @@ export const VideoChatStrip = forwardRef<VideoChatStripHandle, VideoChatStripPro
     // so skip it here.
     const isHostScreen = !!hostIdentity && String(p.identity) === String(hostIdentity);
     if (screenPub?.track && !screenPub.isMuted && !isHostScreen) {
-      const screenVideoEl = document.createElement("video");
-      screenVideoEl.autoplay = true;
-      screenVideoEl.playsInline = true;
-      screenVideoEl.muted = true;
-      screenPub.track.attach(screenVideoEl);
-
       tiles.push({
         key: `${p.identity}:screen`,
         identity: p.identity,
         name: `${p.name || p.identity} (screen)`,
         kind: "screen",
-        videoEl: screenVideoEl,
+        track: screenPub.track,
         cameraOn: true,
         micOn: true,
         isLocal,
@@ -339,7 +330,7 @@ export const VideoChatStrip = forwardRef<VideoChatStripHandle, VideoChatStripPro
       return;
     }
 
-    await lp.setScreenShareEnabled(true);
+    await lp.setScreenShareEnabled(true, { audio: true });
     setShareOn(true);
     rebuildTiles();
   }
@@ -449,13 +440,15 @@ function Tile({
   pinned?: boolean;
   big?: boolean;
 }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    if (t.videoEl && wrapRef.current) {
-      wrapRef.current.innerHTML = "";
-      wrapRef.current.appendChild(t.videoEl);
-    }
-  }, [t.videoEl]);
+    const el = videoRef.current;
+    if (!el || !t.track) return;
+    try { t.track.attach(el); } catch {}
+    return () => {
+      try { t.track.detach(el); } catch {}
+    };
+  }, [t.track]);
 
   const isScreen = t.kind === "screen";
   const speakingCls = t.isSpeaking ? "speaking" : "";
@@ -502,7 +495,13 @@ function Tile({
       onClick={onClick}
       title={onClick ? (big ? "Click to unpin" : "Click to pin/expand") : undefined}
     >
-      <div ref={wrapRef} style={{ width: "100%", height: "100%" }} />
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ width: "100%", height: "100%", objectFit: isScreen ? "contain" : "cover" }}
+      />
       <span className="nm">{t.isLocal && !isScreen ? "You" : t.name}</span>
       {!isScreen && !t.micOn && <span className="mic-off">✕</span>}
       {!big && <span className="pin-badge" aria-hidden>⛶</span>}
