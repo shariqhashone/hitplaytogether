@@ -26,7 +26,13 @@ body{
     var(--bg);
   -webkit-font-smoothing:antialiased;
   min-height:100vh;
+  display:flex;
+  flex-direction:column;
 }
+/* Sticky footer: the main content area grows to fill the viewport so the
+   footer is pushed to the bottom on short pages. */
+.page-pad{flex:1 0 auto;}
+.site-foot,.foot-base{flex-shrink:0;}
 h1,h2,h3,h4,.display{font-family:'Sora',sans-serif;}
 a{text-decoration:none;color:inherit;}
 img{display:block;max-width:100%;}
