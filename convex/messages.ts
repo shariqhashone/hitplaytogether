@@ -74,6 +74,9 @@ export const send = mutation({
       .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", me._id))
       .first();
     if (!member) throw new Error("Not a participant of this room");
+    if (member.pendingApproval) {
+      throw new Error("You're still waiting for the host to admit you.");
+    }
     if (member.mutedByHost) {
       throw new Error("You're muted by the host — you can't send messages.");
     }

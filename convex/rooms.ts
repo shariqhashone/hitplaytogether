@@ -161,9 +161,10 @@ export const get = query({
       };
     }
 
+    // Only fully-admitted (approved, present) participants are shown to the room.
     const withUsers = await Promise.all(
       participants
-        .filter((p) => !p.leftAt)
+        .filter((p) => !p.leftAt && !p.pendingApproval)
         .map(async (p) => {
           const u = await ctx.db.get(p.userId);
           return {
@@ -180,21 +181,40 @@ export const get = query({
         }),
     );
 
+    // People still waiting for the host to admit them.
+    const pendingRequests = await Promise.all(
+      participants
+        .filter((p) => !p.leftAt && p.pendingApproval && p.role !== "host")
+        .map(async (p) => {
+          const u = await ctx.db.get(p.userId);
+          return {
+            userId: p.userId,
+            displayName: u?.displayName ?? "Unknown",
+            avatarUrl: await resolveAvatar(ctx, u ?? null),
+            requestedAt: p.joinedAt,
+          };
+        }),
+    );
+
     // Has the caller been kicked from this room?
     const myParticipant = participants.find((p) => p.userId === me._id);
     const wasKicked = !!myParticipant?.kickedAt;
     const myMutedByHost = !!myParticipant?.mutedByHost;
-    const myCanShareScreen = room.hostId === me._id || !!myParticipant?.canShareScreen;
+    const myCanShareScreen = isHost || !!myParticipant?.canShareScreen;
     const myScreenShareRequestedAt = myParticipant?.screenShareRequestedAt;
+    const myPendingApproval =
+      !isHost && !!myParticipant?.pendingApproval && !myParticipant?.leftAt;
 
     return {
       room,
       participants: withUsers,
-      meIsHost: room.hostId === me._id,
+      pendingRequests,
+      meIsHost: isHost,
       wasKicked,
       myMutedByHost,
       myCanShareScreen,
       myScreenShareRequestedAt,
+      myPendingApproval,
     };
   },
 });
@@ -217,6 +237,38 @@ export const setParticipantMute = mutation({
       .first();
     if (!p) throw new Error("Participant not found");
     await ctx.db.patch(p._id, { mutedByHost: muted });
+  },
+});
+
+/** Host admits a waiting participant into the room. */
+export const approveJoinRequest = mutation({
+  args: { roomId: v.id("rooms"), userId: v.id("appUsers") },
+  handler: async (ctx, { roomId, userId }) => {
+    await hostOnly(ctx, roomId);
+    const p = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", userId))
+      .first();
+    if (!p) throw new Error("Request not found");
+    await ctx.db.patch(p._id, { pendingApproval: false });
+  },
+});
+
+/** Host denies a waiting participant — treated like a kick. */
+export const denyJoinRequest = mutation({
+  args: { roomId: v.id("rooms"), userId: v.id("appUsers") },
+  handler: async (ctx, { roomId, userId }) => {
+    await hostOnly(ctx, roomId);
+    const p = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room_user", (q) => q.eq("roomId", roomId).eq("userId", userId))
+      .first();
+    if (!p) return;
+    await ctx.db.patch(p._id, {
+      pendingApproval: false,
+      kickedAt: Date.now(),
+      leftAt: Date.now(),
+    });
   },
 });
 
@@ -305,7 +357,11 @@ export const joinByLink = mutation({
     if (existing) {
       if (existing.leftAt) {
         await assertRoomCapacity(ctx, room._id, me._id);
-        await ctx.db.patch(existing._id, { leftAt: undefined, joinedAt: Date.now() });
+        await ctx.db.patch(existing._id, {
+          leftAt: undefined,
+          joinedAt: Date.now(),
+          pendingApproval: true,
+        });
       }
       return { roomId: room._id };
     }
@@ -316,6 +372,7 @@ export const joinByLink = mutation({
       userId: me._id,
       role: "participant",
       joinedAt: Date.now(),
+      pendingApproval: true,
     });
     return { roomId: room._id };
   },
@@ -348,6 +405,7 @@ export const join = mutation({
           leftAt: undefined,
           kickedAt: undefined,
           joinedAt: Date.now(),
+          pendingApproval: true,
         });
       }
       return { roomId: room._id };
@@ -359,6 +417,7 @@ export const join = mutation({
       userId: me._id,
       role: "participant",
       joinedAt: Date.now(),
+      pendingApproval: true,
     });
     return { roomId: room._id };
   },

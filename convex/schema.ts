@@ -69,6 +69,8 @@ export default defineSchema({
     // Screen-share permission flow
     canShareScreen: v.optional(v.boolean()),       // host grants
     screenShareRequestedAt: v.optional(v.number()), // user's pending request ts
+    // Join-approval flow: true while waiting for the host to admit them.
+    pendingApproval: v.optional(v.boolean()),
   })
     .index("by_room", ["roomId"])
     .index("by_user", ["userId"])

@@ -31,6 +31,8 @@ export default function WatchRoomPage() {
   const kickParticipant = useMutation(api.rooms.kickParticipant);
   const setScreenSharePermission = useMutation(api.rooms.setScreenSharePermission);
   const joinByLink = useMutation(api.rooms.joinByLink);
+  const approveJoin = useMutation(api.rooms.approveJoinRequest);
+  const denyJoin = useMutation(api.rooms.denyJoinRequest);
 
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
@@ -155,6 +157,38 @@ export default function WatchRoomPage() {
   const hostName =
     data.participants.find((p) => p.role === "host")?.displayName ?? "The host";
 
+  // Waiting room — the host hasn't admitted this user yet.
+  if ("myPendingApproval" in data && data.myPendingApproval) {
+    return (
+      <>
+        <AuthBootstrap />
+        <div className="auth-wrap">
+          <div className="auth-card" style={{ width: 400, textAlign: "center" }}>
+            <div style={{ fontSize: 38, marginBottom: 12 }}>✋</div>
+            <h2 style={{ fontSize: 20, marginBottom: 8 }}>Waiting to be let in</h2>
+            <p style={{ fontSize: 13, color: "var(--txt-3)", marginBottom: 22, lineHeight: 1.55 }}>
+              {hostName} has been asked to admit you to <b>{room.name}</b>. You'll
+              join automatically as soon as they approve.
+            </p>
+            <div className="loader" style={{ padding: 0, marginBottom: 22 }}>
+              <span className="dot-live" style={{ marginRight: 8 }} />
+              Waiting for approval…
+            </div>
+            <button
+              className="btn btn-ghost btn-block"
+              onClick={async () => {
+                await leave({ roomId });
+                router.push("/dashboard");
+              }}
+            >
+              Cancel & leave
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   async function onSend(e?: React.FormEvent) {
     e?.preventDefault();
     const body = draft.trim();
@@ -257,6 +291,30 @@ export default function WatchRoomPage() {
               </span>
             ))}
           </div>
+
+          {data.meIsHost &&
+            "pendingRequests" in data &&
+            data.pendingRequests.map((p) => (
+              <div className="share-request" key={`join-${p.userId}`}>
+                <span>
+                  <b>{p.displayName}</b> wants to join the room
+                </span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => denyJoin({ roomId, userId: p.userId })}
+                  >
+                    Deny
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => approveJoin({ roomId, userId: p.userId })}
+                  >
+                    Admit
+                  </button>
+                </div>
+              </div>
+            ))}
 
           {data.meIsHost &&
             data.participants
