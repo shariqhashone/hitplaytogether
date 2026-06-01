@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -29,15 +29,12 @@ type TileState = {
   avatarUrl?: string;
 };
 
-export function VideoChatStrip({
-  roomId,
-  forceMicOff = false,
-  canShareScreen = true,
-  screenShareRequested = false,
-  pinnedKey = null,
-  onPin,
-  avatarByIdentity = {},
-}: {
+export type VideoChatStripHandle = {
+  presentToStage: () => Promise<void>;
+  stopPresenting: () => Promise<void>;
+};
+
+type VideoChatStripProps = {
   roomId: Id<"rooms">;
   forceMicOff?: boolean;
   canShareScreen?: boolean;
@@ -45,7 +42,27 @@ export function VideoChatStrip({
   pinnedKey?: string | null;
   onPin?: (key: string) => void;
   avatarByIdentity?: Record<string, string | null>;
-}) {
+  /** LiveKit identity of the room host — their screen goes to the main stage. */
+  hostIdentity?: string;
+  /** Fires with the host's screen-share track (or null) for the main stage. */
+  onHostScreenTrack?: (track: Track | null) => void;
+  /** Fires when the local host starts/stops presenting to the stage. */
+  onPresentingChange?: (on: boolean) => void;
+};
+
+export const VideoChatStrip = forwardRef<VideoChatStripHandle, VideoChatStripProps>(
+  function VideoChatStrip({
+  roomId,
+  forceMicOff = false,
+  canShareScreen = true,
+  screenShareRequested = false,
+  pinnedKey = null,
+  onPin,
+  avatarByIdentity = {},
+  hostIdentity,
+  onHostScreenTrack,
+  onPresentingChange,
+}, ref) {
   const getToken = useAction(api.video.getToken);
   const requestScreenShare = useMutation(api.rooms.requestScreenShare);
   const cancelScreenShareRequest = useMutation(api.rooms.cancelScreenShareRequest);
@@ -60,6 +77,35 @@ export function VideoChatStrip({
   // Audio elements live in the DOM, keyed by track sid. They persist across
   // tile rebuilds — only torn down when the track itself unsubscribes.
   const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  // The host's current screen-share track that's promoted to the main stage.
+  const hostScreenTrackRef = useRef<Track | null>(null);
+
+  // Expose present/stop controls to the page (the host's "Present screen" button).
+  useImperativeHandle(ref, () => ({
+    presentToStage: async () => {
+      const lp = roomRef.current?.localParticipant as LocalParticipant | undefined;
+      if (!lp) return;
+      await lp.setScreenShareEnabled(true);
+      setShareOn(true);
+      rebuildTiles();
+    },
+    stopPresenting: async () => {
+      const lp = roomRef.current?.localParticipant as LocalParticipant | undefined;
+      if (!lp) return;
+      await lp.setScreenShareEnabled(false);
+      setShareOn(false);
+      rebuildTiles();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
+  // Tell the page when the local host's presenting state changes.
+  useEffect(() => {
+    const lp = roomRef.current?.localParticipant;
+    const iAmHost = hostIdentity && lp && String(lp.identity) === String(hostIdentity);
+    if (iAmHost) onPresentingChange?.(shareOn);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareOn, hostIdentity]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,7 +191,10 @@ export function VideoChatStrip({
     });
 
     // ----- screen-share tile (only when actually sharing) -----
-    if (screenPub?.track && !screenPub.isMuted) {
+    // The host's screen is promoted to the main stage instead of the strip,
+    // so skip it here.
+    const isHostScreen = !!hostIdentity && String(p.identity) === String(hostIdentity);
+    if (screenPub?.track && !screenPub.isMuted && !isHostScreen) {
       const screenVideoEl = document.createElement("video");
       screenVideoEl.autoplay = true;
       screenVideoEl.playsInline = true;
@@ -177,6 +226,29 @@ export function VideoChatStrip({
     // Screen shares first (they're the focus), then cameras
     next.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "screen" ? -1 : 1));
     setTiles(next);
+
+    // Promote the host's screen-share to the main stage (handled by the page).
+    let stageTrack: Track | null = null;
+    if (hostIdentity) {
+      const findScreen = (p: Participant) => {
+        const sp = p.getTrackPublication(Track.Source.ScreenShare);
+        return sp?.track && !sp.isMuted ? (sp.track as Track) : null;
+      };
+      if (String(room.localParticipant.identity) === String(hostIdentity)) {
+        stageTrack = findScreen(room.localParticipant);
+      } else {
+        const hp = [...room.remoteParticipants.values()].find(
+          (p) => String(p.identity) === String(hostIdentity),
+        );
+        if (hp) stageTrack = findScreen(hp);
+      }
+    }
+    const prevSid = hostScreenTrackRef.current?.sid ?? null;
+    const nextSid = stageTrack?.sid ?? null;
+    if (prevSid !== nextSid) {
+      hostScreenTrackRef.current = stageTrack;
+      onHostScreenTrack?.(stageTrack);
+    }
   }
 
   function attachRemoteTrack(track: RemoteTrack, pub: RemoteTrackPublication, p: RemoteParticipant) {
@@ -364,7 +436,7 @@ export function VideoChatStrip({
       </div>
     </>
   );
-}
+});
 
 function Tile({
   t,

@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { ConvexError } from "convex/values";
 import { requireUser } from "./lib/auth";
 import { extractYouTubeId } from "./lib/youtube";
 import { generateRoomCode } from "./lib/code";
@@ -31,7 +32,10 @@ export const create = mutation({
     if (!name || name.length > 80) throw new Error("Room name is required (max 80 chars)");
 
     const videoId = extractYouTubeId(args.videoUrl);
-    if (!videoId) throw new Error("Could not parse a YouTube video from that URL");
+    if (!videoId)
+      throw new ConvexError(
+        "That doesn't look like a valid YouTube link. Please paste a full YouTube video URL (e.g. https://youtube.com/watch?v=…).",
+      );
 
     const code = await uniqueCode(ctx);
     const roomId = await ctx.db.insert("rooms", {
@@ -341,7 +345,10 @@ export const changeVideo = mutation({
     if (!room) throw new Error("Room not found");
     if (room.hostId !== me._id) throw new Error("Host only");
     const videoId = extractYouTubeId(videoUrl);
-    if (!videoId) throw new Error("Could not parse a YouTube video from that URL");
+    if (!videoId)
+      throw new ConvexError(
+        "That doesn't look like a valid YouTube link. Please paste a full YouTube video URL (e.g. https://youtube.com/watch?v=…).",
+      );
     await ctx.db.patch(roomId, {
       videoUrl,
       videoId,

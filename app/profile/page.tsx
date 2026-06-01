@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { AppNav } from "@/components/Nav";
 import { AuthBootstrap } from "@/components/AuthBootstrap";
 import { Footer } from "@/components/Footer";
+import { friendlyError } from "@/lib/clientError";
 
 export default function ProfilePage() {
   const { isAuthenticated } = useConvexAuth();
@@ -53,7 +54,7 @@ export default function ProfilePage() {
       await setAvatarMutation({ storageId });
       setMsg("Avatar updated.");
     } catch (e: any) {
-      setErr(e?.message ?? "Could not upload avatar");
+      setErr(friendlyError(e, "Could not upload avatar."));
     } finally {
       setUploading(false);
     }
@@ -65,7 +66,7 @@ export default function ProfilePage() {
       await update({ displayName, avatarUrl });
       setMsg("Saved.");
     } catch (e: any) {
-      setErr(e?.message ?? "Could not save");
+      setErr(friendlyError(e, "Could not save your changes."));
     } finally {
       setBusy(false);
     }

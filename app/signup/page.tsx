@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Brand } from "@/components/Nav";
+import { friendlyError } from "@/lib/clientError";
 
 /**
  * Retries a mutation that may transiently fail with "Not signed in" right
@@ -56,7 +57,7 @@ export default function SignUpPage() {
       );
       router.push("/dashboard");
     } catch (e: any) {
-      setErr(e?.message ?? "Sign-up failed.");
+      setErr(friendlyError(e, "Sign-up failed. Please try again."));
     } finally {
       setBusy(false);
     }

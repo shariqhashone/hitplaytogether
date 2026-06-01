@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Brand } from "@/components/Nav";
+import { friendlyError } from "@/lib/clientError";
 
 /** Retries bootstrap while the auth token is still propagating post-sign-in. */
 async function bootstrapWithRetry<T>(fn: () => Promise<T>, tries = 12): Promise<T> {
@@ -42,7 +43,7 @@ export default function LoginPage() {
       await bootstrapWithRetry(() => bootstrap({}));
       router.push("/dashboard");
     } catch (e: any) {
-      setErr(e?.message ?? "Login failed — check your email and password.");
+      setErr(friendlyError(e, "Login failed — check your email and password."));
     } finally {
       setBusy(false);
     }

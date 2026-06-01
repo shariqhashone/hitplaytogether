@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { AppNav } from "@/components/Nav";
 import { AuthBootstrap } from "@/components/AuthBootstrap";
+import { friendlyError } from "@/lib/clientError";
 
 export default function CreateRoomPage() {
   const create = useMutation(api.rooms.create);
@@ -24,7 +25,7 @@ export default function CreateRoomPage() {
       const r = await create({ name, privacy, videoUrl });
       router.push(`/room/${r.roomId}`);
     } catch (e: any) {
-      setErr(e?.message ?? "Could not create room");
+      setErr(friendlyError(e, "Could not create room. Please try again."));
     } finally {
       setBusy(false);
     }

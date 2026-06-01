@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { AppNav } from "@/components/Nav";
 import { AuthBootstrap } from "@/components/AuthBootstrap";
+import { friendlyError } from "@/lib/clientError";
 
 export default function JoinRoomPage() {
   const join = useMutation(api.rooms.join);
@@ -36,7 +37,7 @@ export default function JoinRoomPage() {
       const r = await join({ code });
       router.push(`/room/${r.roomId}`);
     } catch (e: any) {
-      setErr(e?.message ?? "Invalid code");
+      setErr(friendlyError(e, "That code didn't work. Please double-check it."));
     } finally {
       setBusy(false);
     }

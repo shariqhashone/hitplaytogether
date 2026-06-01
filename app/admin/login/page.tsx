@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { Brand } from "@/components/Nav";
+import { friendlyError } from "@/lib/clientError";
 
 export default function AdminLoginPage() {
   const { signIn } = useAuthActions();
@@ -31,7 +32,7 @@ export default function AdminLoginPage() {
       // re-fetch via reactive query will redirect via useEffect
       if (!user) throw new Error("Could not load admin account");
     } catch (e: any) {
-      setErr(e?.message ?? "Login failed");
+      setErr(friendlyError(e, "Login failed — check your email and password."));
     } finally {
       setBusy(false);
     }

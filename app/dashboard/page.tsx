@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { AppNav } from "@/components/Nav";
 import { AuthBootstrap } from "@/components/AuthBootstrap";
+import { friendlyError } from "@/lib/clientError";
 
 export default function DashboardPage() {
   const { isAuthenticated } = useConvexAuth();
@@ -23,7 +24,7 @@ export default function DashboardPage() {
       const r = await join({ code });
       router.push(`/room/${r.roomId}`);
     } catch (e: any) {
-      setErr(e?.message ?? "Could not join room");
+      setErr(friendlyError(e, "Could not join room. Check the code and try again."));
     }
   }
 

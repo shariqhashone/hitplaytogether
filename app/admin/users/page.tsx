@@ -4,6 +4,7 @@ import { AdminShell } from "@/components/AdminShell";
 import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { friendlyError } from "@/lib/clientError";
 
 type Status = "active" | "banned" | "deleted";
 
@@ -101,7 +102,7 @@ function UserDrawer({
 
   async function run(fn: () => Promise<unknown>) {
     setErr(null); setBusy(true);
-    try { await fn(); } catch (e: any) { setErr(e?.message ?? "Action failed"); }
+    try { await fn(); } catch (e: any) { setErr(friendlyError(e, "Action failed.")); }
     finally { setBusy(false); }
   }
 

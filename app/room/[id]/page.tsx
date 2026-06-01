@@ -8,7 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Brand } from "@/components/Nav";
 import { AuthBootstrap } from "@/components/AuthBootstrap";
 import { YouTubePlayer, YTPlayerHandle } from "@/components/YouTubePlayer";
-import { VideoChatStrip } from "@/components/VideoChatStrip";
+import { VideoChatStrip, VideoChatStripHandle } from "@/components/VideoChatStrip";
 import { EmojiToggle, isMostlyEmoji } from "@/components/EmojiPicker";
 
 export default function WatchRoomPage() {
@@ -41,6 +41,10 @@ export default function WatchRoomPage() {
   const [endedNotice, setEndedNotice] = useState<null | "ended" | "kicked">(null);
   const handleRef = useRef<YTPlayerHandle | null>(null);
   const msgsRef = useRef<HTMLDivElement>(null);
+  // Host screen presentation → main stage
+  const stripRef = useRef<VideoChatStripHandle | null>(null);
+  const [hostScreenTrack, setHostScreenTrack] = useState<any>(null);
+  const [presenting, setPresenting] = useState(false);
 
   // presence heartbeat
   useEffect(() => {
@@ -111,6 +115,17 @@ export default function WatchRoomPage() {
     data,
   ]);
 
+  // When the host starts presenting their screen, pause the synced video for
+  // everyone so its audio doesn't clash with the presentation.
+  useEffect(() => {
+    if (!data || !("meIsHost" in data) || !data.meIsHost) return;
+    if (hostScreenTrack) {
+      const pos = handleRef.current?.getPosition() ?? 0;
+      setPlayback({ roomId, state: "paused", positionMs: pos }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostScreenTrack]);
+
   // Access denied for private rooms: auto-redirect to /join-room.
   // For invite-link rooms, auto-join.
   useEffect(() => {
@@ -137,6 +152,8 @@ export default function WatchRoomPage() {
   }
 
   const room = data.room;
+  const hostName =
+    data.participants.find((p) => p.role === "host")?.displayName ?? "The host";
 
   async function onSend(e?: React.FormEvent) {
     e?.preventDefault();
@@ -208,6 +225,19 @@ export default function WatchRoomPage() {
             {copied ? "Copied!" : "Copy"}
           </span>
           {data.meIsHost && (
+            <button
+              className={`btn btn-sm ${presenting ? "btn-primary" : "btn-ghost"}`}
+              onClick={() =>
+                presenting
+                  ? stripRef.current?.stopPresenting()
+                  : stripRef.current?.presentToStage()
+              }
+              title="Share your screen to the main stage for everyone"
+            >
+              {presenting ? "■ Stop presenting" : "🖥️ Present screen"}
+            </button>
+          )}
+          {data.meIsHost && (
             <button className="btn btn-ghost btn-sm" onClick={endRoom}>
               End room
             </button>
@@ -269,9 +299,18 @@ export default function WatchRoomPage() {
                 setPlayback({ roomId, state: room.playbackState, positionMs: pos }).catch(() => {})
               }
             />
+            {hostScreenTrack && (
+              <div className="stage-present">
+                <StageScreen track={hostScreenTrack} />
+                <span className="stage-present-tag">
+                  🖥️ {data.meIsHost ? "You're presenting your screen" : `${hostName} is presenting`}
+                </span>
+              </div>
+            )}
           </div>
 
           <VideoChatStrip
+            ref={stripRef}
             roomId={roomId}
             forceMicOff={data.myMutedByHost}
             canShareScreen={data.myCanShareScreen}
@@ -281,6 +320,9 @@ export default function WatchRoomPage() {
             avatarByIdentity={Object.fromEntries(
               data.participants.map((p) => [String(p.userId), p.avatarUrl ?? null]),
             )}
+            hostIdentity={String(room.hostId)}
+            onHostScreenTrack={setHostScreenTrack}
+            onPresentingChange={setPresenting}
           />
 
           <div className="now-playing">
@@ -438,4 +480,18 @@ export default function WatchRoomPage() {
       </div>
     </>
   );
+}
+
+/** Renders a LiveKit screen-share track filling the main stage. */
+function StageScreen({ track }: { track: any }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !track) return;
+    try { track.attach(el); } catch {}
+    return () => {
+      try { track.detach(el); } catch {}
+    };
+  }, [track]);
+  return <video ref={ref} autoPlay playsInline muted className="stage-screen-video" />;
 }
