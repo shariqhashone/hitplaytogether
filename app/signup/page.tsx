@@ -7,6 +7,27 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Brand } from "@/components/Nav";
 
+/**
+ * Retries a mutation that may transiently fail with "Not signed in" right
+ * after sign-in, while the auth token is still propagating to the socket.
+ */
+async function bootstrapWithRetry<T>(fn: () => Promise<T>, tries = 12): Promise<T> {
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      if (i < tries - 1 && /not signed in/i.test(msg)) {
+        await new Promise((r) => setTimeout(r, 250));
+        continue;
+      }
+      throw e;
+    }
+  }
+  // unreachable, but keeps TS happy
+  return fn();
+}
+
 export default function SignUpPage() {
   const { signIn } = useAuthActions();
   const bootstrap = useMutation(api.users.bootstrap);
@@ -27,7 +48,12 @@ export default function SignUpPage() {
     setBusy(true);
     try {
       await signIn("password", { email, password, flow: "signUp" });
-      await bootstrap({ displayName: displayName.trim() || undefined });
+      // signIn() resolves before the Convex client has attached the new auth
+      // token to its socket, so an immediate mutation can still arrive as
+      // "Not signed in". Retry bootstrap a few times until the identity lands.
+      await bootstrapWithRetry(
+        () => bootstrap({ displayName: displayName.trim() || undefined }),
+      );
       router.push("/dashboard");
     } catch (e: any) {
       setErr(e?.message ?? "Sign-up failed.");

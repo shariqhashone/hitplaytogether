@@ -7,6 +7,23 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Brand } from "@/components/Nav";
 
+/** Retries bootstrap while the auth token is still propagating post-sign-in. */
+async function bootstrapWithRetry<T>(fn: () => Promise<T>, tries = 12): Promise<T> {
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      if (i < tries - 1 && /not signed in/i.test(msg)) {
+        await new Promise((r) => setTimeout(r, 250));
+        continue;
+      }
+      throw e;
+    }
+  }
+  return fn();
+}
+
 export default function LoginPage() {
   const { signIn } = useAuthActions();
   const bootstrap = useMutation(api.users.bootstrap);
@@ -22,7 +39,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await signIn("password", { email, password, flow: "signIn" });
-      await bootstrap({});
+      await bootstrapWithRetry(() => bootstrap({}));
       router.push("/dashboard");
     } catch (e: any) {
       setErr(e?.message ?? "Login failed — check your email and password.");
