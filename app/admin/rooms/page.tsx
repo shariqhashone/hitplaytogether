@@ -36,7 +36,7 @@ export default function AdminRoomsPage() {
         <table className="tbl">
           <thead>
             <tr>
-              <th>Room</th><th>Host</th><th>Code</th><th>Privacy</th><th>Status</th><th>People</th><th>Created</th><th></th>
+              <th>Room</th><th>Host</th><th>Code</th><th>Privacy</th><th>Status</th><th>People</th><th>Created</th><th>Ended</th><th>Duration</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -51,7 +51,13 @@ export default function AdminRoomsPage() {
                 <td><span className={`badge ${r.privacy === "private" ? "priv" : "live"}`}>{r.privacy === "private" ? "Private" : "Link"}</span></td>
                 <td><span className={`badge ${r.status}`}>{r.status}</span></td>
                 <td>{r.participantCount}</td>
-                <td>{new Date(r._creationTime).toLocaleDateString()}</td>
+                <td>{new Date(r._creationTime).toLocaleString()}</td>
+                <td style={{ color: r.endedAt ? "var(--txt-2)" : "var(--txt-3)" }}>
+                  {r.endedAt ? new Date(r.endedAt).toLocaleString() : "—"}
+                </td>
+                <td style={{ color: "var(--txt-3)" }}>
+                  {formatDuration(r._creationTime, r.endedAt)}
+                </td>
                 <td style={{ color: "var(--txt-3)", fontSize: 16 }}>›</td>
               </tr>
             ))}
@@ -111,6 +117,26 @@ function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => v
                 <span className="vv" style={{ fontFamily: "Sora" }}>{room.code}</span>
               </div>
 
+              <div className="sec">Session</div>
+              <div className="kv">
+                <span className="k">Status</span>
+                <span className="vv">
+                  <span className={`badge ${room.status}`}>{room.status}</span>
+                </span>
+              </div>
+              <div className="kv">
+                <span className="k">Created</span>
+                <span className="vv">{new Date(room._creationTime).toLocaleString()}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Ended</span>
+                <span className="vv">{room.endedAt ? new Date(room.endedAt).toLocaleString() : "— still active"}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Duration</span>
+                <span className="vv">{formatDuration(room._creationTime, room.endedAt)}</span>
+              </div>
+
               <div className="sec">Participants ({live.length} live)</div>
               {data.participants.length === 0 ? (
                 <div className="empty" style={{ padding: 20 }}>Nobody here.</div>
@@ -160,4 +186,18 @@ function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => v
       </div>
     </>
   );
+}
+
+/** Human-readable duration between room creation and end (or now, if active). */
+function formatDuration(start: number, end?: number): string {
+  const ms = (end ?? Date.now()) - start;
+  if (ms < 0) return "—";
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "< 1 min";
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h < 24) return m ? `${h}h ${m}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h`;
 }
