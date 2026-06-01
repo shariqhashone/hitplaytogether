@@ -16,17 +16,18 @@ export default function AdminReportsPage() {
   const update = useMutation(api.admin.updateReport);
 
   return (
-    <AdminShell title="Moderation reports">
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        {(["open", "investigating", "resolved", "dismissed", undefined] as const).map((s) => (
-          <button
-            key={String(s)}
-            className={`btn ${status === s ? "btn-primary" : "btn-ghost"}`}
-            onClick={() => setStatus(s)}
-          >
-            {s ?? "All"}
-          </button>
-        ))}
+    <AdminShell title="Reports" subtitle="Moderation queue">
+      <div className="toolbar">
+        <div className="seg">
+          {(["open", "investigating", "resolved", "dismissed", undefined] as const).map((s) => (
+            <button key={String(s)} className={status === s ? "on" : ""} onClick={() => setStatus(s)}>
+              {s ? s[0].toUpperCase() + s.slice(1) : "All"}
+            </button>
+          ))}
+        </div>
+        <span className="spacer count-note">
+          {reports === undefined ? "…" : `${reports.length} shown`}
+        </span>
       </div>
 
       {reports === undefined ? <div className="loader">Loading…</div> :

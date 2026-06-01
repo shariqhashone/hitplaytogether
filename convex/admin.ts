@@ -53,7 +53,23 @@ export const getUser = query({
       .query("reports")
       .withIndex("by_target_user", (q) => q.eq("targetUserId", userId))
       .take(20);
-    return { user, rooms: hosted, reports };
+    const plan = await ctx.db.get(user.planId);
+    const allMsgs = await ctx.db
+      .query("messages")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const joined = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    return {
+      user,
+      rooms: hosted,
+      reports,
+      planName: plan?.name ?? "—",
+      messageCount: allMsgs.filter((m) => !m.deletedAt).length,
+      roomsJoined: joined.length,
+    };
   },
 });
 
@@ -245,6 +261,8 @@ export const overview = query({
     await requireAdmin(ctx);
     const now = Date.now();
     const dayAgo = now - 24 * 3600_000;
+    const week = 7 * 24 * 3600_000;
+    const liveWindow = now - 60_000; // presence heartbeat freshness
 
     const users = await ctx.db.query("appUsers").collect();
     const activeRooms = await ctx.db
@@ -257,15 +275,111 @@ export const overview = query({
       .query("reports")
       .withIndex("by_status", (q) => q.eq("status", "open"))
       .collect();
+    const presence = await ctx.db.query("presence").collect();
+
+    const live = presence.filter(
+      (p) => p.state !== "offline" && p.heartbeatAt >= liveWindow,
+    );
+    const onlineNow = new Set(live.map((p) => String(p.userId))).size;
+
+    // active participants currently sitting in a live room
+    const activeRoomIds = new Set(activeRooms.map((r) => String(r._id)));
+    const liveParticipants = live.filter((p) =>
+      activeRoomIds.has(String(p.roomId)),
+    ).length;
+
+    // 7-day signups vs the prior 7 days → growth delta
+    const newUsers7d = users.filter((u) => u._creationTime >= now - week).length;
+    const prevUsers7d = users.filter(
+      (u) => u._creationTime >= now - 2 * week && u._creationTime < now - week,
+    ).length;
 
     return {
       totalUsers: users.filter((u) => u.status !== "deleted").length,
       bannedUsers: users.filter((u) => u.status === "banned").length,
+      adminUsers: users.filter((u) => u.isAdmin && u.status !== "deleted").length,
       activeRooms: activeRooms.length,
+      totalRooms: allRooms.length,
       roomsToday: allRooms.filter((r) => r._creationTime >= dayAgo).length,
+      totalMessages: messages.filter((m) => !m.deletedAt).length,
       messagesToday: messages.filter((m) => m._creationTime >= dayAgo).length,
       openReports: reports.length,
+      onlineNow,
+      liveParticipants,
+      newUsers7d,
+      prevUsers7d,
     };
+  },
+});
+
+// =============== admin role & plan management (in-UI) ===============
+
+export const listPlans = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    return await ctx.db.query("plans").collect();
+  },
+});
+
+export const setUserAdmin = mutation({
+  args: { userId: v.id("appUsers"), isAdmin: v.boolean() },
+  handler: async (ctx, { userId, isAdmin }) => {
+    const admin = await requireAdmin(ctx);
+    const target = await ctx.db.get(userId);
+    if (!target) throw new Error("User not found");
+    if (!isAdmin) {
+      // Guard: never let an admin demote themselves, and never remove the
+      // last remaining admin (which would lock everyone out of the panel).
+      if (String(userId) === String(admin._id)) {
+        throw new Error("You can't remove your own admin access.");
+      }
+      const admins = await ctx.db
+        .query("appUsers")
+        .withIndex("by_isAdmin", (q) => q.eq("isAdmin", true))
+        .collect();
+      const activeAdmins = admins.filter((a) => a.status !== "deleted");
+      if (activeAdmins.length <= 1) {
+        throw new Error("Can't demote the last admin.");
+      }
+    }
+    await ctx.db.patch(userId, { isAdmin });
+    await logAction(ctx, admin._id, isAdmin ? "grant_admin" : "revoke_admin", "user", userId);
+  },
+});
+
+export const setUserPlan = mutation({
+  args: { userId: v.id("appUsers"), planId: v.id("plans") },
+  handler: async (ctx, { userId, planId }) => {
+    const admin = await requireAdmin(ctx);
+    const plan = await ctx.db.get(planId);
+    if (!plan) throw new Error("Plan not found");
+    await ctx.db.patch(userId, { planId });
+    await logAction(ctx, admin._id, "change_plan", "user", userId, { plan: plan.name });
+  },
+});
+
+// messages per day — engagement trend for Analytics
+export const messagesActivity = query({
+  args: { days: v.optional(v.number()) },
+  handler: async (ctx, { days }) => {
+    await requireAdmin(ctx);
+    const n = days ?? 14;
+    const cutoff = Date.now() - n * 24 * 3600_000;
+    const messages = await ctx.db.query("messages").collect();
+    const buckets: Record<string, number> = {};
+    for (let i = 0; i < n; i++) {
+      const k = dayKey(Date.now() - i * 24 * 3600_000);
+      buckets[k] = 0;
+    }
+    for (const m of messages) {
+      if (m._creationTime < cutoff || m.deletedAt) continue;
+      const k = dayKey(m._creationTime);
+      if (k in buckets) buckets[k]++;
+    }
+    return Object.entries(buckets)
+      .map(([day, count]) => ({ day, count }))
+      .sort((a, b) => a.day.localeCompare(b.day));
   },
 });
 

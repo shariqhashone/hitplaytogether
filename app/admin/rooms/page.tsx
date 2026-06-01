@@ -10,57 +10,154 @@ export default function AdminRoomsPage() {
   const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
   const canQuery = isAuthenticated && me?.isAdmin === true;
   const [status, setStatus] = useState<"active" | "ended" | undefined>("active");
+  const [openId, setOpenId] = useState<Id<"rooms"> | null>(null);
   const rooms = useQuery(api.admin.listRooms, canQuery ? { status, limit: 200 } : "skip");
-  const endRoom = useMutation(api.admin.endRoom);
 
   return (
-    <AdminShell title="Rooms">
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {(["active", "ended", undefined] as const).map((s) => (
-          <button
-            key={String(s)}
-            onClick={() => setStatus(s)}
-            className={`btn ${status === s ? "btn-primary" : "btn-ghost"}`}
-          >
-            {s ? s[0].toUpperCase() + s.slice(1) : "All"}
-          </button>
-        ))}
+    <AdminShell title="Rooms" subtitle="Live watch parties & history">
+      <div className="toolbar">
+        <div className="seg">
+          {(["active", "ended", undefined] as const).map((s) => (
+            <button key={String(s)} className={status === s ? "on" : ""} onClick={() => setStatus(s)}>
+              {s ? s[0].toUpperCase() + s.slice(1) : "All"}
+            </button>
+          ))}
+        </div>
+        <span className="spacer count-note">
+          {rooms === undefined ? "…" : `${rooms.length} shown`}
+        </span>
       </div>
 
-      {rooms === undefined ? <div className="loader">Loading…</div> :
-       rooms.length === 0 ? <div className="empty">No rooms found.</div> :
-      <table className="tbl">
-        <thead><tr>
-          <th>Room</th><th>Host</th><th>Code</th><th>Status</th><th>Participants</th><th>Created</th><th></th>
-        </tr></thead>
-        <tbody>
-          {rooms.map((r) => (
-            <tr key={r._id}>
-              <td>{r.name}</td>
-              <td>
-                <div>{r.hostName}</div>
-                <div style={{ fontSize: 11, color: "var(--txt-3)" }}>{r.hostEmail}</div>
-              </td>
-              <td style={{ fontFamily: "Sora" }}>{r.code}</td>
-              <td><span className={`badge ${r.status}`}>{r.status}</span></td>
-              <td>{r.participantCount}</td>
-              <td>{new Date(r._creationTime).toLocaleString()}</td>
-              <td className="actions">
-                {r.status === "active" && (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => {
-                      if (confirm("Force-end this room?")) endRoom({ roomId: r._id as Id<"rooms"> });
-                    }}
-                  >
-                    End
-                  </button>
-                )}
-              </td>
+      {rooms === undefined ? (
+        <div className="loader">Loading…</div>
+      ) : rooms.length === 0 ? (
+        <div className="empty">No rooms found.</div>
+      ) : (
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Room</th><th>Host</th><th>Code</th><th>Privacy</th><th>Status</th><th>People</th><th>Created</th><th></th>
             </tr>
-          ))}
-        </tbody>
-      </table>}
+          </thead>
+          <tbody>
+            {rooms.map((r) => (
+              <tr key={r._id} className="clickable" onClick={() => setOpenId(r._id as Id<"rooms">)}>
+                <td style={{ fontWeight: 600 }}>{r.name}</td>
+                <td>
+                  <div>{r.hostName}</div>
+                  <div style={{ fontSize: 11, color: "var(--txt-3)" }}>{r.hostEmail}</div>
+                </td>
+                <td style={{ fontFamily: "Sora" }}>{r.code}</td>
+                <td><span className={`badge ${r.privacy === "private" ? "priv" : "live"}`}>{r.privacy === "private" ? "Private" : "Link"}</span></td>
+                <td><span className={`badge ${r.status}`}>{r.status}</span></td>
+                <td>{r.participantCount}</td>
+                <td>{new Date(r._creationTime).toLocaleDateString()}</td>
+                <td style={{ color: "var(--txt-3)", fontSize: 16 }}>›</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {openId && <RoomDrawer roomId={openId} onClose={() => setOpenId(null)} />}
     </AdminShell>
+  );
+}
+
+function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => void }) {
+  const data = useQuery(api.admin.getRoom, { roomId });
+  const endRoom = useMutation(api.admin.endRoom);
+  const [busy, setBusy] = useState(false);
+
+  const room = data?.room;
+  const live = data?.participants.filter((p) => !p.leftAt) ?? [];
+
+  return (
+    <>
+      <div className="drawer-back" onClick={onClose} />
+      <div className="drawer">
+        {data === undefined || !room ? (
+          <div className="loader">Loading…</div>
+        ) : (
+          <>
+            <div className="drawer-head">
+              <span className="av" style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-2))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🎬</span>
+              <div>
+                <h2>{room.name}</h2>
+                <div className="ml">Host: {data.host?.displayName ?? "Unknown"}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <span className={`badge ${room.status}`}>{room.status}</span>
+                  <span className={`badge ${room.privacy === "private" ? "priv" : "live"}`}>{room.privacy === "private" ? "Private" : "Link"}</span>
+                  <span className="badge priv">{room.playbackState}</span>
+                </div>
+              </div>
+              <button className="x" onClick={onClose}>×</button>
+            </div>
+
+            <div className="drawer-body">
+              <div className="mini-stats">
+                <div className="mini-stat"><div className="v">{live.length}</div><div className="l">In room</div></div>
+                <div className="mini-stat"><div className="v">{data.participants.length}</div><div className="l">Total joined</div></div>
+                <div className="mini-stat"><div className="v">{data.messages.length}</div><div className="l">Messages</div></div>
+              </div>
+
+              <div className="sec">Now watching</div>
+              <div className="kv">
+                <span className="k">Video</span>
+                <span className="vv" style={{ maxWidth: 240, textAlign: "right" }}>{room.videoTitle ?? room.videoId}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Access code</span>
+                <span className="vv" style={{ fontFamily: "Sora" }}>{room.code}</span>
+              </div>
+
+              <div className="sec">Participants ({live.length} live)</div>
+              {data.participants.length === 0 ? (
+                <div className="empty" style={{ padding: 20 }}>Nobody here.</div>
+              ) : (
+                data.participants.map((p) => (
+                  <div className="list-row" key={p._id}>
+                    <div>
+                      <div className="t">
+                        {p.displayName ?? "Unknown"}
+                        {p.role === "host" && <span className="badge admin" style={{ marginLeft: 7 }}>Host</span>}
+                        {p.mutedByHost && <span className="badge banned" style={{ marginLeft: 7 }}>Muted</span>}
+                      </div>
+                      <div className="s">{p.email}</div>
+                    </div>
+                    <span className={`badge ${p.leftAt ? "ended" : "active"} r`}>{p.leftAt ? "left" : "online"}</span>
+                  </div>
+                ))
+              )}
+
+              <div className="sec">Chat transcript</div>
+              {data.messages.length === 0 ? (
+                <div className="empty" style={{ padding: 20 }}>No messages.</div>
+              ) : (
+                <div className="transcript">
+                  {data.messages.map((m) => (
+                    <div className={`m${m.deletedAt ? " del" : ""}`} key={m._id}>
+                      <span className="a">{m.authorName ?? "Unknown"}</span>
+                      {m.body}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="drawer-foot">
+              {room.status === "active" && (
+                <button className="btn btn-primary" disabled={busy}
+                  onClick={async () => {
+                    if (!confirm("Force-end this room for everyone?")) return;
+                    setBusy(true);
+                    try { await endRoom({ roomId }); onClose(); } finally { setBusy(false); }
+                  }}>Force-end room</button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
