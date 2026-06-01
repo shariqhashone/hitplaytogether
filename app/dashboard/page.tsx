@@ -74,27 +74,44 @@ export default function DashboardPage() {
               <div className="empty">No rooms yet — create your first watch party above.</div>
             ) : (
               <div className="room-grid">
-                {rooms.map((r) => (
-                  <Link href={`/room/${r._id}`} key={r._id} className="room-card">
-                    <div className="room-thumb">
-                      <img
-                        src={`https://img.youtube.com/vi/${r.videoId}/hqdefault.jpg`}
-                        alt=""
-                      />
-                      {r.status === "active" && <span className="live">● LIVE</span>}
-                      <div className="ov">
-                        <span className="mini-play" />
+                {rooms.map((r) => {
+                  const ended = r.status === "ended";
+                  return (
+                    <Link
+                      href={ended ? "#" : `/room/${r._id}`}
+                      key={r._id}
+                      className={`room-card ${ended ? "ended" : ""}`}
+                      style={ended ? { opacity: 0.55, pointerEvents: "none" } : undefined}
+                      aria-disabled={ended}
+                    >
+                      <div className="room-thumb">
+                        <img
+                          src={`https://img.youtube.com/vi/${r.videoId}/hqdefault.jpg`}
+                          alt=""
+                        />
+                        {r.status === "active" && <span className="live">● LIVE</span>}
+                        {ended && (
+                          <span
+                            className="live"
+                            style={{ background: "var(--panel-2)", color: "var(--txt-3)", border: "1px solid var(--line)" }}
+                          >
+                            ENDED
+                          </span>
+                        )}
+                        <div className="ov">
+                          <span className="mini-play" />
+                        </div>
                       </div>
-                    </div>
-                    <div className="meta">
-                      <h4>{r.name}</h4>
-                      <div className="sub">
-                        👥 {r.participantCount} · {r.role === "host" ? "Hosting" : "Joined"} · code{" "}
-                        <span style={{ fontFamily: "Sora" }}>{r.code}</span>
+                      <div className="meta">
+                        <h4>{r.name}</h4>
+                        <div className="sub">
+                          👥 {r.participantCount} · {r.role === "host" ? "Hosting" : "Joined"} · code{" "}
+                          <span style={{ fontFamily: "Sora" }}>{r.code}</span>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>
