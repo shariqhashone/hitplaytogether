@@ -126,6 +126,11 @@ export default defineSchema({
     .index("by_admin", ["adminId"])
     .index("by_action", ["action"]),
 
+  // Singleton row holding global platform settings configured by admins.
+  appSettings: defineTable({
+    maxParticipantsPerRoom: v.optional(v.number()), // undefined / 0 = unlimited
+  }),
+
   siteContent: defineTable({
     key: v.string(), // e.g. hero.headline
     section: v.string(), // e.g. hero / cta / footer

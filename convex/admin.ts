@@ -218,6 +218,29 @@ export const deleteMessage = mutation({
   },
 });
 
+// =============== platform settings ===============
+
+export const getSettings = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.query("appSettings").first();
+    return { maxParticipantsPerRoom: row?.maxParticipantsPerRoom ?? 0 };
+  },
+});
+
+export const updateSettings = mutation({
+  args: { maxParticipantsPerRoom: v.number() },
+  handler: async (ctx, { maxParticipantsPerRoom }) => {
+    const admin = await requireAdmin(ctx);
+    const clean = Math.max(0, Math.floor(maxParticipantsPerRoom));
+    const row = await ctx.db.query("appSettings").first();
+    if (row) await ctx.db.patch(row._id, { maxParticipantsPerRoom: clean });
+    else await ctx.db.insert("appSettings", { maxParticipantsPerRoom: clean });
+    await logAction(ctx, admin._id, "update_settings", "settings", undefined, { maxParticipantsPerRoom: clean });
+  },
+});
+
 // =============== reports ===============
 
 export const listReports = query({

@@ -25,7 +25,10 @@ const groups: { label: string; items: { href: string; label: string; icon: strin
   },
   {
     label: "Site",
-    items: [{ href: "/admin/content", label: "Content (CMS)", icon: "📝" }],
+    items: [
+      { href: "/admin/content", label: "Content (CMS)", icon: "📝" },
+      { href: "/admin/settings", label: "Settings", icon: "⚙️" },
+    ],
   },
 ];
 

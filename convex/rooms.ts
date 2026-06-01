@@ -19,6 +19,29 @@ async function uniqueCode(ctx: any): Promise<string> {
   throw new Error("Could not allocate a unique room code");
 }
 
+/**
+ * Enforce the admin-configured per-room capacity. A limit of 0 (or unset)
+ * means unlimited. The caller (`meId`) is excluded from the count so a
+ * returning member isn't blocked by their own stale row.
+ */
+async function assertRoomCapacity(ctx: any, roomId: Id<"rooms">, meId: Id<"appUsers">) {
+  const settings = await ctx.db.query("appSettings").first();
+  const max = settings?.maxParticipantsPerRoom ?? 0;
+  if (!max) return;
+  const ps = await ctx.db
+    .query("roomParticipants")
+    .withIndex("by_room", (q: any) => q.eq("roomId", roomId))
+    .collect();
+  const activeOthers = ps.filter(
+    (p: any) => !p.leftAt && String(p.userId) !== String(meId),
+  ).length;
+  if (activeOthers >= max) {
+    throw new ConvexError(
+      `This room is full — it's limited to ${max} ${max === 1 ? "person" : "people"}. Please try again when someone leaves.`,
+    );
+  }
+}
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -281,11 +304,13 @@ export const joinByLink = mutation({
 
     if (existing) {
       if (existing.leftAt) {
+        await assertRoomCapacity(ctx, room._id, me._id);
         await ctx.db.patch(existing._id, { leftAt: undefined, joinedAt: Date.now() });
       }
       return { roomId: room._id };
     }
 
+    await assertRoomCapacity(ctx, room._id, me._id);
     await ctx.db.insert("roomParticipants", {
       roomId: room._id,
       userId: me._id,
@@ -318,6 +343,7 @@ export const join = mutation({
       // both `leftAt` and `kickedAt`. Kicks are per-session, the host can
       // re-kick if needed. (For a permanent ban use the admin functions.)
       if (existing.leftAt || existing.kickedAt) {
+        await assertRoomCapacity(ctx, room._id, me._id);
         await ctx.db.patch(existing._id, {
           leftAt: undefined,
           kickedAt: undefined,
@@ -327,6 +353,7 @@ export const join = mutation({
       return { roomId: room._id };
     }
 
+    await assertRoomCapacity(ctx, room._id, me._id);
     await ctx.db.insert("roomParticipants", {
       roomId: room._id,
       userId: me._id,
