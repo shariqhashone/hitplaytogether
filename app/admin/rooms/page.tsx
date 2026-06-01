@@ -12,6 +12,7 @@ export default function AdminRoomsPage() {
   const [status, setStatus] = useState<"active" | "ended" | undefined>("active");
   const [openId, setOpenId] = useState<Id<"rooms"> | null>(null);
   const rooms = useQuery(api.admin.listRooms, canQuery ? { status, limit: 200 } : "skip");
+  const deleteRoom = useMutation(api.admin.deleteRoom);
 
   return (
     <AdminShell title="Rooms" subtitle="Live watch parties & history">
@@ -36,7 +37,7 @@ export default function AdminRoomsPage() {
         <table className="tbl">
           <thead>
             <tr>
-              <th>Room</th><th>Host</th><th>Code</th><th>Privacy</th><th>Status</th><th>People</th><th>Created</th><th>Ended</th><th>Duration</th><th></th>
+              <th>Room</th><th>Host</th><th>Code</th><th>Privacy</th><th>Status</th><th>People</th><th>Created</th><th>Ended</th><th>Duration</th><th>Actions</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -58,6 +59,18 @@ export default function AdminRoomsPage() {
                 <td style={{ color: "var(--txt-3)" }}>
                   {formatDuration(r._creationTime, r.endedAt)}
                 </td>
+                <td className="actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ color: "var(--brand)" }}
+                    onClick={() => {
+                      if (confirm(`Permanently delete "${r.name}"? This removes the room and all its chat for everyone.`))
+                        deleteRoom({ roomId: r._id as Id<"rooms"> });
+                    }}
+                  >
+                    Delete
+                  </button>
+                </td>
                 <td style={{ color: "var(--txt-3)", fontSize: 16 }}>›</td>
               </tr>
             ))}
@@ -73,6 +86,7 @@ export default function AdminRoomsPage() {
 function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => void }) {
   const data = useQuery(api.admin.getRoom, { roomId });
   const endRoom = useMutation(api.admin.endRoom);
+  const deleteRoom = useMutation(api.admin.deleteRoom);
   const muteInRoom = useMutation(api.admin.muteInRoom);
   const kickFromRoom = useMutation(api.admin.kickFromRoom);
   const deleteMessage = useMutation(api.admin.deleteMessage);
@@ -204,13 +218,20 @@ function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => v
 
             <div className="drawer-foot">
               {room.status === "active" && (
-                <button className="btn btn-primary" disabled={busy}
+                <button className="btn btn-ghost" disabled={busy}
                   onClick={async () => {
                     if (!confirm("Force-end this room for everyone?")) return;
                     setBusy(true);
                     try { await endRoom({ roomId }); onClose(); } finally { setBusy(false); }
                   }}>Force-end room</button>
               )}
+              <button className="btn btn-primary" disabled={busy}
+                style={{ background: "linear-gradient(135deg,var(--brand),#c81e3c)" }}
+                onClick={async () => {
+                  if (!confirm(`Permanently delete "${room.name}"? This removes the room and all its chat for everyone, and can't be undone.`)) return;
+                  setBusy(true);
+                  try { await deleteRoom({ roomId }); onClose(); } finally { setBusy(false); }
+                }}>Delete room</button>
             </div>
           </>
         )}

@@ -178,6 +178,37 @@ export const endRoom = mutation({
   },
 });
 
+// Permanently delete a room and everything tied to it. After this the room
+// disappears from every list (admin, dashboards, my-rooms) because all those
+// views query the rooms table.
+export const deleteRoom = mutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, { roomId }) => {
+    const admin = await requireAdmin(ctx);
+
+    const participants = await ctx.db
+      .query("roomParticipants")
+      .withIndex("by_room", (q) => q.eq("roomId", roomId))
+      .collect();
+    for (const p of participants) await ctx.db.delete(p._id);
+
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_room", (q) => q.eq("roomId", roomId))
+      .collect();
+    for (const m of messages) await ctx.db.delete(m._id);
+
+    const presences = await ctx.db
+      .query("presence")
+      .withIndex("by_room", (q) => q.eq("roomId", roomId))
+      .collect();
+    for (const pr of presences) await ctx.db.delete(pr._id);
+
+    await ctx.db.delete(roomId);
+    await logAction(ctx, admin._id, "delete_room", "room", roomId);
+  },
+});
+
 // ---- in-room moderation (admin overrides the host) ----
 
 async function findParticipant(ctx: any, roomId: Id<"rooms">, userId: Id<"appUsers">) {
