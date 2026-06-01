@@ -1,9 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdminShell } from "@/components/AdminShell";
 import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { Pagination } from "@/components/Pagination";
+
+const PAGE_SIZE = 20;
 
 export default function AdminRoomsPage() {
   const { isAuthenticated } = useConvexAuth();
@@ -11,8 +14,14 @@ export default function AdminRoomsPage() {
   const canQuery = isAuthenticated && me?.isAdmin === true;
   const [status, setStatus] = useState<"active" | "ended" | undefined>("active");
   const [openId, setOpenId] = useState<Id<"rooms"> | null>(null);
-  const rooms = useQuery(api.admin.listRooms, canQuery ? { status, limit: 200 } : "skip");
+  const [page, setPage] = useState(1);
+  const rooms = useQuery(api.admin.listRooms, canQuery ? { status, limit: 500 } : "skip");
   const deleteRoom = useMutation(api.admin.deleteRoom);
+
+  useEffect(() => setPage(1), [status]);
+  const total = rooms?.length ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageRooms = (rooms ?? []).slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <AdminShell title="Rooms" subtitle="Live watch parties & history">
@@ -41,7 +50,7 @@ export default function AdminRoomsPage() {
             </tr>
           </thead>
           <tbody>
-            {rooms.map((r) => (
+            {pageRooms.map((r) => (
               <tr key={r._id} className="clickable" onClick={() => setOpenId(r._id as Id<"rooms">)}>
                 <td style={{ fontWeight: 600 }}>{r.name}</td>
                 <td style={{ maxWidth: 220 }}>
@@ -91,6 +100,10 @@ export default function AdminRoomsPage() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {rooms !== undefined && total > 0 && (
+        <Pagination page={page} pageCount={pageCount} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
       )}
 
       {openId && <RoomDrawer roomId={openId} onClose={() => setOpenId(null)} />}

@@ -1,12 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdminShell } from "@/components/AdminShell";
 import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { friendlyError } from "@/lib/clientError";
+import { Pagination } from "@/components/Pagination";
 
 type Status = "active" | "banned" | "deleted";
+const PAGE_SIZE = 20;
 
 export default function AdminUsersPage() {
   const { isAuthenticated } = useConvexAuth();
@@ -15,9 +17,17 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<Status | undefined>(undefined);
   const [openId, setOpenId] = useState<Id<"appUsers"> | null>(null);
-  const users = useQuery(api.admin.listUsers, canQuery ? { search, status, limit: 200 } : "skip");
+  const [page, setPage] = useState(1);
+  const users = useQuery(api.admin.listUsers, canQuery ? { search, status, limit: 500 } : "skip");
   const ban = useMutation(api.admin.banUser);
   const unban = useMutation(api.admin.unbanUser);
+
+  // Reset to first page when the filter/search changes.
+  useEffect(() => setPage(1), [search, status]);
+
+  const total = users?.length ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageUsers = (users ?? []).slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   async function quickBan(e: React.MouseEvent, u: any) {
     e.stopPropagation();
@@ -62,7 +72,7 @@ export default function AdminUsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u: any) => (
+            {pageUsers.map((u: any) => (
               <tr key={u._id} className="clickable" onClick={() => setOpenId(u._id as Id<"appUsers">)}>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -93,6 +103,10 @@ export default function AdminUsersPage() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {users !== undefined && total > 0 && (
+        <Pagination page={page} pageCount={pageCount} total={total} pageSize={PAGE_SIZE} onPage={setPage} />
       )}
 
       {openId && (
