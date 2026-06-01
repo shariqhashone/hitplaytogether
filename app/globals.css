@@ -185,7 +185,6 @@ button{font-family:inherit;}
 .room-thumb .live.ended-tag{background:rgba(20,20,28,.82);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(4px);}
 .room-card .meta{padding:14px 15px;}
 .room-card .meta h4{font-size:14px;font-weight:600;}
-.room-card .meta .vid{font-size:11.5px;color:var(--txt-2);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .room-card .meta .sub{font-size:11.5px;color:var(--txt-3);margin-top:5px;}
 
 /* WATCH ROOM */

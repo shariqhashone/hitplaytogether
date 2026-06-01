@@ -37,13 +37,28 @@ export default function AdminRoomsPage() {
         <table className="tbl">
           <thead>
             <tr>
-              <th>Room</th><th>Host</th><th>Code</th><th>Privacy</th><th>Status</th><th>People</th><th>Created</th><th>Ended</th><th>Duration</th><th>Actions</th><th></th>
+              <th>Room</th><th>Video</th><th>Host</th><th>Code</th><th>Privacy</th><th>Status</th><th>People</th><th>Created</th><th>Ended</th><th>Duration</th><th>Actions</th><th></th>
             </tr>
           </thead>
           <tbody>
             {rooms.map((r) => (
               <tr key={r._id} className="clickable" onClick={() => setOpenId(r._id as Id<"rooms">)}>
                 <td style={{ fontWeight: 600 }}>{r.name}</td>
+                <td style={{ maxWidth: 220 }}>
+                  <a
+                    href={r.videoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={r.videoUrl}
+                    style={{
+                      color: "var(--cyan)", display: "block", maxWidth: 220,
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    }}
+                  >
+                    🎬 {r.videoTitle || r.videoUrl}
+                  </a>
+                </td>
                 <td>
                   <div>{r.hostName}</div>
                   <div style={{ fontSize: 11, color: "var(--txt-3)" }}>{r.hostEmail}</div>
@@ -128,7 +143,19 @@ function RoomDrawer({ roomId, onClose }: { roomId: Id<"rooms">; onClose: () => v
               <div className="sec">Now watching</div>
               <div className="kv">
                 <span className="k">Video</span>
-                <span className="vv" style={{ maxWidth: 240, textAlign: "right" }}>{room.videoTitle ?? room.videoId}</span>
+                <span className="vv" style={{ maxWidth: 260, textAlign: "right" }}>{room.videoTitle ?? room.videoId}</span>
+              </div>
+              <div className="kv">
+                <span className="k">URL</span>
+                <a
+                  href={room.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="vv"
+                  style={{ color: "var(--cyan)", maxWidth: 260, textAlign: "right", overflowWrap: "anywhere" }}
+                >
+                  {room.videoUrl}
+                </a>
               </div>
               <div className="kv">
                 <span className="k">Access code</span>

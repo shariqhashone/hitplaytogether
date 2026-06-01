@@ -97,9 +97,6 @@ export default function DashboardPage() {
                       </div>
                       <div className="meta">
                         <h4>{r.name}</h4>
-                        <div className="vid" title={r.videoUrl}>
-                          🎬 {r.videoTitle || r.videoUrl || `youtu.be/${r.videoId}`}
-                        </div>
                         <div className="sub">
                           👥 {r.participantCount} · {r.role === "host" ? "Hosting" : "Joined"} · code{" "}
                           <span style={{ fontFamily: "Sora" }}>{r.code}</span>
