@@ -13,6 +13,7 @@ export function Footer({ tagline, copyright }: { tagline?: string; copyright?: s
           <h5>Product</h5>
           <a href="/#features">Features</a>
           <a href="/#how">How it works</a>
+          <Link href="/docs">Documentation</Link>
           <Link href="/dashboard">Watch rooms</Link>
           <Link href="/signup">Sign up</Link>
         </div>

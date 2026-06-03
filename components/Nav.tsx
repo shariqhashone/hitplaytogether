@@ -27,6 +27,7 @@ export function PublicNav() {
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
         <a href="#usecases">Use cases</a>
+        <Link href="/docs">Docs</Link>
         <a href="#faq">FAQ</a>
       </div>
       <div className="nav-right">
