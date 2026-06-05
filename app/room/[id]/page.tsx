@@ -52,6 +52,8 @@ export default function WatchRoomPage() {
   const [videoVol, setVideoVol] = useState(100); // 0..100
   const [voiceVol, setVoiceVol] = useState(100); // 0..100 master for all voices
   const [partVol, setPartVol] = useState<Record<string, number>>({}); // identity -> 0..100
+  const [mixerPos, setMixerPos] = useState<{ x: number; y: number } | null>(null); // null = default anchor
+  const mixerDragRef = useRef<{ dx: number; dy: number } | null>(null);
 
   // presence heartbeat
   useEffect(() => {
@@ -262,6 +264,28 @@ export default function WatchRoomPage() {
     stripRef.current?.setParticipantVolume(identity, v / 100);
   }
 
+  // Drag the mixer popup by its header (pointer-capture based — works with
+  // mouse and touch, keeps tracking even if the pointer leaves the header).
+  function mixerDown(e: React.PointerEvent) {
+    if ((e.target as HTMLElement).closest(".x")) return; // not when closing
+    const panel = (e.currentTarget as HTMLElement).closest(".mixer") as HTMLElement | null;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    mixerDragRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    setMixerPos({ x: r.left, y: r.top });
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+  }
+  function mixerMove(e: React.PointerEvent) {
+    if (!mixerDragRef.current) return;
+    const x = Math.max(8, Math.min(window.innerWidth - 80, e.clientX - mixerDragRef.current.dx));
+    const y = Math.max(8, Math.min(window.innerHeight - 60, e.clientY - mixerDragRef.current.dy));
+    setMixerPos({ x, y });
+  }
+  function mixerUp(e: React.PointerEvent) {
+    mixerDragRef.current = null;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+  }
+
   return (
     <>
       <AuthBootstrap />
@@ -346,9 +370,19 @@ export default function WatchRoomPage() {
           {data.meIsHost && mixerOpen && (
             <>
             <div className="mixer-backdrop" onClick={() => setMixerOpen(false)} />
-            <div className="mixer mixer-pop" role="dialog" aria-label="Audio mixer">
-              <div className="mixer-head">
-                <span>🎚 Audio mixer</span>
+            <div
+              className="mixer mixer-pop"
+              role="dialog"
+              aria-label="Audio mixer"
+              style={mixerPos ? { left: mixerPos.x, top: mixerPos.y, right: "auto", bottom: "auto" } : undefined}
+            >
+              <div
+                className="mixer-head drag"
+                onPointerDown={mixerDown}
+                onPointerMove={mixerMove}
+                onPointerUp={mixerUp}
+              >
+                <span>⠿ 🎚 Audio mixer</span>
                 <button className="x" onClick={() => setMixerOpen(false)} aria-label="Close">
                   ×
                 </button>
