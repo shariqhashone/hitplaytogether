@@ -206,6 +206,10 @@ button{font-family:inherit;}
 
 /* Host audio mixer */
 .mixer{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px;box-shadow:0 24px 50px -30px rgba(0,0,0,.9);}
+/* Floating popup variant (anchored near the Audio mixer button) */
+.mixer-backdrop{position:fixed;inset:0;z-index:290;background:transparent;}
+.mixer-pop{position:fixed;top:62px;right:18px;width:380px;max-width:calc(100vw - 36px);max-height:72vh;overflow-y:auto;margin:0;z-index:300;box-shadow:0 30px 70px -20px rgba(0,0,0,.85);animation:mixer-in .14s ease;}
+@keyframes mixer-in{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
 .mixer-head{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;}
 .mixer-head .x{background:none;border:none;color:var(--txt-3);font-size:22px;line-height:1;cursor:pointer;}
 .mixer-head .x:hover{color:var(--txt);}
@@ -412,5 +416,6 @@ button{font-family:inherit;}
   .mixer-row{flex-wrap:wrap;gap:8px;}
   .mixer-row .lbl{width:auto;flex:1 1 100%;}
   .mixer-row .val{width:auto;}
+  .mixer-pop{top:auto;bottom:12px;left:12px;right:12px;width:auto;max-width:none;}
   .now-playing{align-items:flex-start;}
 }

@@ -344,7 +344,9 @@ export default function WatchRoomPage() {
           </div>
 
           {data.meIsHost && mixerOpen && (
-            <div className="mixer">
+            <>
+            <div className="mixer-backdrop" onClick={() => setMixerOpen(false)} />
+            <div className="mixer mixer-pop" role="dialog" aria-label="Audio mixer">
               <div className="mixer-head">
                 <span>🎚 Audio mixer</span>
                 <button className="x" onClick={() => setMixerOpen(false)} aria-label="Close">
@@ -400,6 +402,7 @@ export default function WatchRoomPage() {
                 </div>
               )}
             </div>
+            </>
           )}
 
           {data.meIsHost &&
