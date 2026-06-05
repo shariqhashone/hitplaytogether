@@ -36,6 +36,10 @@ type TileState = {
 export type VideoChatStripHandle = {
   presentToStage: () => Promise<void>;
   stopPresenting: () => Promise<void>;
+  /** Master volume for ALL participant voices, 0..1 (host mixer). */
+  setMasterVolume: (v: number) => void;
+  /** Volume for one participant's voice by identity, 0..1 (host mixer). */
+  setParticipantVolume: (identity: string, v: number) => void;
 };
 
 type VideoChatStripProps = {
@@ -83,6 +87,25 @@ export const VideoChatStrip = forwardRef<VideoChatStripHandle, VideoChatStripPro
   const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   // The host's current screen-share track that's promoted to the main stage.
   const hostScreenTrackRef = useRef<Track | null>(null);
+  // Host audio-mixer volumes (local only — adjusts what THIS listener hears).
+  // master is 0..1; per-identity is 0..1. Effective = master * per.
+  const masterVolRef = useRef(1);
+  const partVolRef = useRef<Map<string, number>>(new Map());
+
+  function effVol(identity: string) {
+    const per = partVolRef.current.get(identity) ?? 1;
+    return Math.max(0, Math.min(1, masterVolRef.current * per));
+  }
+  function applyVolumeForIdentity(identity: string) {
+    audioElsRef.current.forEach((el, key) => {
+      if (key.startsWith(identity + ":")) el.volume = effVol(identity);
+    });
+  }
+  function applyAllVolumes() {
+    audioElsRef.current.forEach((el, key) => {
+      el.volume = effVol(key.split(":")[0]);
+    });
+  }
 
   // Expose present/stop controls to the page (the host's "Present screen" button).
   useImperativeHandle(ref, () => ({
@@ -99,6 +122,14 @@ export const VideoChatStrip = forwardRef<VideoChatStripHandle, VideoChatStripPro
       await lp.setScreenShareEnabled(false);
       setShareOn(false);
       rebuildTiles();
+    },
+    setMasterVolume: (v) => {
+      masterVolRef.current = Math.max(0, Math.min(1, v));
+      applyAllVolumes();
+    },
+    setParticipantVolume: (identity, v) => {
+      partVolRef.current.set(identity, Math.max(0, Math.min(1, v)));
+      applyVolumeForIdentity(identity);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
@@ -257,6 +288,7 @@ export const VideoChatStrip = forwardRef<VideoChatStripHandle, VideoChatStripPro
         audioElsRef.current.set(key, el);
       }
       (track as RemoteAudioTrack).attach(el);
+      el.volume = effVol(p.identity); // honour the host mixer for new audio
     }
     rebuildTiles();
   }

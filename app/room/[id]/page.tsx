@@ -47,6 +47,11 @@ export default function WatchRoomPage() {
   const stripRef = useRef<VideoChatStripHandle | null>(null);
   const [hostScreenTrack, setHostScreenTrack] = useState<any>(null);
   const [presenting, setPresenting] = useState(false);
+  // Host audio mixer (local — adjusts what the host hears)
+  const [mixerOpen, setMixerOpen] = useState(false);
+  const [videoVol, setVideoVol] = useState(100); // 0..100
+  const [voiceVol, setVoiceVol] = useState(100); // 0..100 master for all voices
+  const [partVol, setPartVol] = useState<Record<string, number>>({}); // identity -> 0..100
 
   // presence heartbeat
   useEffect(() => {
@@ -114,6 +119,30 @@ export default function WatchRoomPage() {
     data?.room.playbackPositionMs,
     data?.room.playbackUpdatedAt,
     data?.meIsHost,
+    data,
+  ]);
+
+  // Non-hosts can't touch the player, but keep them drift-corrected to the host
+  // in case their tab throttles or buffers and slips out of sync.
+  useEffect(() => {
+    if (!data || !("room" in data) || data.meIsHost) return;
+    const t = setInterval(() => {
+      const h = handleRef.current;
+      if (!h) return;
+      const room = data.room;
+      const expected =
+        room.playbackPositionMs +
+        (room.playbackState === "playing" ? Date.now() - room.playbackUpdatedAt : 0);
+      if (Math.abs(h.getPosition() - expected) > 1500) h.seekTo(expected);
+      if (room.playbackState === "playing") h.play();
+      else h.pause();
+    }, 4000);
+    return () => clearInterval(t);
+  }, [
+    data?.meIsHost,
+    data?.room.playbackState,
+    data?.room.playbackPositionMs,
+    data?.room.playbackUpdatedAt,
     data,
   ]);
 
@@ -220,6 +249,19 @@ export default function WatchRoomPage() {
     router.push("/dashboard");
   }
 
+  function changeVideoVol(v: number) {
+    setVideoVol(v);
+    handleRef.current?.setVolume(v);
+  }
+  function changeVoiceVol(v: number) {
+    setVoiceVol(v);
+    stripRef.current?.setMasterVolume(v / 100);
+  }
+  function changePartVol(identity: string, v: number) {
+    setPartVol((s) => ({ ...s, [identity]: v }));
+    stripRef.current?.setParticipantVolume(identity, v / 100);
+  }
+
   return (
     <>
       <AuthBootstrap />
@@ -260,6 +302,15 @@ export default function WatchRoomPage() {
           </span>
           {data.meIsHost && (
             <button
+              className={`btn btn-sm ${mixerOpen ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setMixerOpen((v) => !v)}
+              title="Audio mixer — balance the video and each person's voice"
+            >
+              🎚 Audio mixer
+            </button>
+          )}
+          {data.meIsHost && (
+            <button
               className={`btn btn-sm ${presenting ? "btn-primary" : "btn-ghost"}`}
               onClick={() =>
                 presenting
@@ -291,6 +342,65 @@ export default function WatchRoomPage() {
               </span>
             ))}
           </div>
+
+          {data.meIsHost && mixerOpen && (
+            <div className="mixer">
+              <div className="mixer-head">
+                <span>🎚 Audio mixer</span>
+                <button className="x" onClick={() => setMixerOpen(false)} aria-label="Close">
+                  ×
+                </button>
+              </div>
+              <p className="mixer-note">
+                Balance what you hear. These levels adjust your own playback only.
+              </p>
+
+              <div className="mixer-row">
+                <span className="lbl">🎬 Video sound</span>
+                <input
+                  type="range" min={0} max={100} value={videoVol}
+                  onChange={(e) => changeVideoVol(Number(e.target.value))}
+                />
+                <span className="val">{videoVol}%</span>
+              </div>
+
+              <div className="mixer-row">
+                <span className="lbl">🔊 Everyone's voice</span>
+                <input
+                  type="range" min={0} max={100} value={voiceVol}
+                  onChange={(e) => changeVoiceVol(Number(e.target.value))}
+                />
+                <span className="val">{voiceVol}%</span>
+              </div>
+
+              {data.participants.filter((p) => p.userId !== me?._id).length > 0 && (
+                <div className="mixer-people">
+                  <div className="mixer-sub">Individual voices</div>
+                  {data.participants
+                    .filter((p) => p.userId !== me?._id)
+                    .map((p) => {
+                      const id = String(p.userId);
+                      const v = partVol[id] ?? 100;
+                      return (
+                        <div className="mixer-row" key={id}>
+                          <span className="lbl person">
+                            {p.displayName}
+                            {p.role === "host" && (
+                              <span style={{ color: "var(--brand-2)", marginLeft: 4 }}>· Host</span>
+                            )}
+                          </span>
+                          <input
+                            type="range" min={0} max={100} value={v}
+                            onChange={(e) => changePartVol(id, Number(e.target.value))}
+                          />
+                          <span className="val">{v}%</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
 
           {data.meIsHost &&
             "pendingRequests" in data &&
@@ -357,6 +467,12 @@ export default function WatchRoomPage() {
                 setPlayback({ roomId, state: room.playbackState, positionMs: pos }).catch(() => {})
               }
             />
+            {!data.meIsHost && (
+              <div
+                className="player-lock"
+                title="Only the host controls playback"
+              />
+            )}
             {hostScreenTrack && (
               <div className="stage-present">
                 <StageScreen track={hostScreenTrack} />

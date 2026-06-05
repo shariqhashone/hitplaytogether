@@ -32,6 +32,8 @@ export type YTPlayerHandle = {
   seekTo: (ms: number) => void;
   getPosition: () => number;
   getState: () => "playing" | "paused" | "other";
+  setVolume: (v: number) => void; // 0..100
+  getVolume: () => number;
 };
 
 export function YouTubePlayer({
@@ -79,6 +81,8 @@ export function YouTubePlayer({
                 if (s === 2) return "paused";
                 return "other";
               },
+              setVolume: (v) => playerRef.current?.setVolume?.(Math.max(0, Math.min(100, v))),
+              getVolume: () => playerRef.current?.getVolume?.() ?? 100,
             };
             registerHandle?.(h);
           },

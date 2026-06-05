@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { AuthBootstrap } from "./AuthBootstrap";
 
@@ -48,6 +48,10 @@ export function AdminShell({
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuthActions();
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => setNavOpen(false), [pathname]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -63,7 +67,8 @@ export function AdminShell({
     <>
       <AuthBootstrap />
       <div className="admin-shell">
-        <aside className="admin-side">
+        {navOpen && <div className="admin-backdrop" onClick={() => setNavOpen(false)} />}
+        <aside className={`admin-side ${navOpen ? "open" : ""}`}>
           <div className="logo">
             <Link href="/" className="brand">
               <span className="mark" />
@@ -112,9 +117,18 @@ export function AdminShell({
 
         <main className="admin-main">
           <div className="admin-top">
-            <div className="ttl">
-              <h1>{title}</h1>
-              {subtitle && <span className="sub">{subtitle}</span>}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <button
+                className="admin-burger"
+                onClick={() => setNavOpen(true)}
+                aria-label="Open menu"
+              >
+                ☰
+              </button>
+              <div className="ttl">
+                <h1>{title}</h1>
+                {subtitle && <span className="sub">{subtitle}</span>}
+              </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               {right}
